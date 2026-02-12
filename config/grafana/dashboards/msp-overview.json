@@ -33,6 +33,7 @@
           "uid": "${datasource}"
         },
         "query": "label_values(node_uname_info, customer_id)",
+        "definition": "label_values(node_uname_info, customer_id)",
         "current": {},
         "hide": 0,
         "includeAll": true,
@@ -131,7 +132,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "avg(\n  (1 - avg by (customer_id, server_name) (\n    rate(node_cpu_seconds_total{customer_id=~\"$customer\", mode=\"idle\"}[5m])\n  )) * 100\n)",
+          "expr": "avg(\n  clamp_min(\n    (1 - avg by (customer_id, server_name) (\n      rate(node_cpu_seconds_total{customer_id=~\"$customer\", mode=\"idle\"}[5m])\n    )) * 100\n  , 0)\n)",
           "refId": "A",
           "legendFormat": "__auto"
         }
@@ -219,7 +220,7 @@
           "format": "table"
         },
         {
-          "expr": "avg by (customer_id) (\n  (1 - avg by (customer_id, server_name) (\n    rate(node_cpu_seconds_total{mode=\"idle\"}[5m])\n  )) * 100\n)",
+          "expr": "avg by (customer_id) (\n  clamp_min(\n    (1 - avg by (customer_id, server_name) (\n      rate(node_cpu_seconds_total{mode=\"idle\"}[5m])\n    )) * 100\n  , 0)\n)",
           "refId": "B",
           "legendFormat": "평균 CPU (%)",
           "instant": true,
@@ -337,7 +338,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "avg by (customer_id) (\n  (1 - avg by (customer_id, server_name) (\n    rate(node_cpu_seconds_total{customer_id=~\"$customer\", mode=\"idle\"}[5m])\n  )) * 100\n)",
+          "expr": "avg by (customer_id) (\n  clamp_min(\n    (1 - avg by (customer_id, server_name) (\n      rate(node_cpu_seconds_total{customer_id=~\"$customer\", mode=\"idle\"}[5m])\n    )) * 100\n  , 0)\n)",
           "refId": "A",
           "legendFormat": "{{customer_id}}"
         }

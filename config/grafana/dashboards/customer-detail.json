@@ -15,28 +15,47 @@
         "name": "datasource",
         "type": "datasource",
         "query": "prometheus",
-        "current": {}
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
       },
       {
         "name": "customer",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "query": "label_values(node_uname_info, customer_id)",
-        "refresh": 2,
-        "sort": 1,
+        "definition": "label_values(node_uname_info, customer_id)",
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
         "multi": false,
-        "includeAll": false
+        "options": [],
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1
       },
       {
         "name": "server",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "query": "label_values(node_uname_info{customer_id=\"$customer\"}, server_name)",
-        "refresh": 2,
-        "sort": 1,
-        "multi": true,
+        "definition": "label_values(node_uname_info{customer_id=\"$customer\"}, server_name)",
+        "current": {},
+        "hide": 0,
         "includeAll": true,
-        "allValue": ".*"
+        "multi": true,
+        "allValue": ".*",
+        "options": [],
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1
       }
     ]
   },
@@ -77,7 +96,7 @@
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "avg(\n  (1 - avg by (customer_id, server_name) (\n    rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m])\n  )) * 100\n)", "refId": "A" }]
+      "targets": [{ "expr": "avg(\n  clamp_min(\n    (1 - avg by (customer_id, server_name) (\n      rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m])\n    )) * 100\n  , 0)\n)", "refId": "A" }]
     },
     {
       "id": 3,
@@ -135,7 +154,7 @@
         "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
       },
       "targets": [{
-        "expr": "(1 - avg by (customer_id, server_name) (\n  rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m])\n)) * 100",
+        "expr": "clamp_min(\n  (1 - avg by (customer_id, server_name) (\n    rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m])\n  )) * 100\n, 0)",
         "legendFormat": "{{server_name}}",
         "refId": "A"
       }]
@@ -262,7 +281,7 @@
       "options": { "showHeader": true, "sortBy": [{ "displayName": "CPU (%)", "desc": true }] },
       "transformations": [{ "id": "merge", "options": {} }],
       "targets": [
-        { "expr": "(1 - avg by (server_name) (rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m]))) * 100", "legendFormat": "CPU (%)", "refId": "A", "format": "table", "instant": true },
+        { "expr": "clamp_min((1 - avg by (server_name) (rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m]))) * 100, 0)", "legendFormat": "CPU (%)", "refId": "A", "format": "table", "instant": true },
         { "expr": "(1 - node_memory_MemAvailable_bytes{customer_id=\"$customer\", server_name=~\"$server\"} / node_memory_MemTotal_bytes{customer_id=\"$customer\", server_name=~\"$server\"}) * 100", "legendFormat": "메모리 (%)", "refId": "B", "format": "table", "instant": true },
         { "expr": "(1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"} / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"}) * 100", "legendFormat": "디스크 (%)", "refId": "C", "format": "table", "instant": true }
       ]
