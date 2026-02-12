@@ -1,0 +1,40 @@
+# 환경 변수 (고객 자격증명 포함)
+.env
+.env.local
+.env.*.local
+
+# Docker 볼륨 데이터
+vm-data/
+grafana-data/
+
+# TLS 인증서
+*.pem
+*.key
+*.crt
+ssl/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 로그
+*.log
+logs/
+
+# 빌드
+dist/
+build/

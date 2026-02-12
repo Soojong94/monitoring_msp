@@ -1,0 +1,128 @@
+# ============================================
+# MSP Monitoring - Docker Compose (Production)
+# ============================================
+# 중앙 서버에서 다중 고객의 클라우드 리소스를 모니터링
+#
+# 서비스 구성:
+#   VictoriaMetrics → 시계열 저장소 (Prometheus 대체)
+#   CSP Collector   → 멀티CSP 메트릭 수집 (AWS, Azure, GCP, NCP)
+#   Grafana         → 대시보드 시각화
+#   Nginx           → 리버스 프록시 + Basic Auth
+
+services:
+  # -----------------------------------------------
+  # VictoriaMetrics: 시계열 데이터 저장
+  # -----------------------------------------------
+  # Prometheus 드롭인 대체. remote_write 수신 내장.
+  # Alloy 에이전트 → remote_write → :8428/api/v1/write
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.106.1
+    container_name: msp-victoriametrics
+    restart: unless-stopped
+    command:
+      - '-storageDataPath=/victoria-metrics-data'
+      - '-retentionPeriod=${VM_RETENTION:-90d}'
+      - '-httpListenAddr=:8428'
+      - '-selfScrapeInterval=15s'
+      # remote_write 수신 시 중복 제거 (에이전트 재전송 보호)
+      - '-dedup.minScrapeInterval=30s'
+    volumes:
+      - vm-data:/victoria-metrics-data
+    networks:
+      - msp-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8428/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -----------------------------------------------
+  # CSP Collector: 멀티CSP 메트릭 수집
+  # -----------------------------------------------
+  csp-collector:
+    build:
+      context: .
+      dockerfile: docker/csp-collector/Dockerfile
+    container_name: msp-csp-collector
+    restart: unless-stopped
+    environment:
+      - VM_URL=http://victoriametrics:8428
+      - COLLECTION_INTERVAL=${COLLECTION_INTERVAL:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - msp-net
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:9091/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # -----------------------------------------------
+  # Grafana: 대시보드 시각화
+  # -----------------------------------------------
+  grafana:
+    build:
+      context: .
+      dockerfile: docker/grafana/Dockerfile
+    container_name: msp-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - msp-net
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # -----------------------------------------------
+  # Nginx: 리버스 프록시 + Basic Auth
+  # -----------------------------------------------
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        BASIC_AUTH_USER: ${NGINX_BASIC_AUTH_USER:-admin}
+        BASIC_AUTH_PASSWORD: ${NGINX_BASIC_AUTH_PASSWORD:-changeme}
+    container_name: msp-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-8880}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
+    networks:
+      - msp-net
+    depends_on:
+      grafana:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  msp-net:
+    driver: bridge
+
+volumes:
+  vm-data:
+    driver: local
+  grafana-data:
+    driver: local

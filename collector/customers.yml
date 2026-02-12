@@ -1,0 +1,75 @@
+# ============================================
+# MSP Monitoring - 고객 정의
+# ============================================
+# AWS 자격증명은 환경변수로 참조 (이미지에 키 포함 X)
+
+customers:
+  - id: "alpha"
+    name: "Alpha Corp"
+    csp: aws
+    environment: production
+    regions:
+      - ap-northeast-2
+    credentials:
+      access_key_env: "CUSTOMER_ALPHA_AWS_ACCESS_KEY"
+      secret_key_env: "CUSTOMER_ALPHA_AWS_SECRET_KEY"
+    collect:
+      - ec2
+      - cost
+      - s3
+
+  - id: "beta"
+    name: "Beta Inc"
+    csp: aws
+    environment: production
+    regions:
+      - ap-northeast-2
+    credentials:
+      access_key_env: "CUSTOMER_BETA_AWS_ACCESS_KEY"
+      secret_key_env: "CUSTOMER_BETA_AWS_SECRET_KEY"
+    collect:
+      - ec2
+      - cost
+
+  - id: "gamma"
+    name: "Gamma LLC"
+    csp: aws
+    environment: production
+    regions:
+      - ap-northeast-2
+      - us-east-1
+    credentials:
+      access_key_env: "CUSTOMER_GAMMA_AWS_ACCESS_KEY"
+      secret_key_env: "CUSTOMER_GAMMA_AWS_SECRET_KEY"
+    collect:
+      - ec2
+      - cost
+      - rds
+      - s3
+
+  - id: "delta"
+    name: "Delta Co"
+    csp: aws
+    environment: production
+    regions:
+      - ap-northeast-2
+    credentials:
+      access_key_env: "CUSTOMER_DELTA_AWS_ACCESS_KEY"
+      secret_key_env: "CUSTOMER_DELTA_AWS_SECRET_KEY"
+    collect:
+      - ec2
+      - cost
+
+  - id: "epsilon"
+    name: "Epsilon Ltd"
+    csp: aws
+    environment: production
+    regions:
+      - ap-northeast-2
+    credentials:
+      access_key_env: "CUSTOMER_EPSILON_AWS_ACCESS_KEY"
+      secret_key_env: "CUSTOMER_EPSILON_AWS_SECRET_KEY"
+    collect:
+      - ec2
+      - cost
+      - s3

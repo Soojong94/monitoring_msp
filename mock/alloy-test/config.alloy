@@ -1,0 +1,50 @@
+// ============================================
+// MSP Monitoring - Test Alloy Agent Config
+// ============================================
+// 고객 서버를 시뮬레이션하는 테스트 에이전트.
+// 컨테이너 내부의 실제 OS 메트릭을 수집하여 중앙 서버로 push.
+
+// --- OS 메트릭 수집 (node_exporter 내장) ---
+prometheus.exporter.unix "node" {
+  set_collectors     = ["cpu", "meminfo", "loadavg", "filesystem", "netdev", "uname"]
+  rootfs_path        = "/host/root"
+  procfs_path        = "/host/proc"
+  sysfs_path         = "/host/sys"
+}
+
+// --- 15초 간격 스크래핑 ---
+prometheus.scrape "node" {
+  targets         = prometheus.exporter.unix.node.targets
+  forward_to      = [prometheus.relabel.customer_labels.receiver]
+  scrape_interval = "15s"
+}
+
+// --- 고객/서버 라벨 추가 ---
+prometheus.relabel "customer_labels" {
+  forward_to = [prometheus.remote_write.central.receiver]
+
+  rule {
+    action       = "replace"
+    target_label = "customer_id"
+    replacement  = env("CUSTOMER_ID")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "server_name"
+    replacement  = env("SERVER_NAME")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "environment"
+    replacement  = env("ENVIRONMENT")
+  }
+}
+
+// --- 중앙 서버로 remote_write push ---
+prometheus.remote_write "central" {
+  endpoint {
+    url = env("REMOTE_WRITE_URL")
+  }
+}

@@ -1,0 +1,18 @@
+# ============================================
+# MSP Monitoring - Grafana Dashboard Provisioning
+# ============================================
+
+apiVersion: 1
+
+providers:
+  - name: MSP Monitoring
+    orgId: 1
+    folder: MSP Monitoring
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

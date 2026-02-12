@@ -1,0 +1,11 @@
+# ============================================
+# MSP Monitoring - VictoriaMetrics Scrape Config
+# ============================================
+# CSP Collector 메트릭을 주기적으로 수집
+
+scrape_configs:
+  - job_name: csp-collector
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - csp-collector:9091
