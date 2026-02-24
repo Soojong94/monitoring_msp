@@ -55,15 +55,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # CSP Collector: 로컬에서는 비활성화 (크레덴셜 없음)
-  csp-collector:
-    entrypoint: ["sh", "-c", "echo 'CSP collector disabled in local mode' && sleep infinity"]
-    healthcheck:
-      test: ["CMD", "true"]
-      interval: 60s
-      timeout: 5s
-      retries: 1
-
   # Grafana 직접 접근 (디버깅용)
   grafana:
     ports:
