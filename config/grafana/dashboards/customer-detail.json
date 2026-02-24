@@ -122,7 +122,7 @@
       "title": "평균 CPU",
       "type": "gauge",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 8, "x": 4, "y": 1 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent", "min": 0, "max": 100,
@@ -137,7 +137,7 @@
       "title": "평균 메모리",
       "type": "gauge",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 8, "x": 12, "y": 1 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent", "min": 0, "max": 100,
@@ -146,22 +146,6 @@
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "avg(\n  (1 - node_memory_MemAvailable_bytes{customer_id=\"$customer\", server_name=~\"$server\"}\n     / node_memory_MemTotal_bytes{customer_id=\"$customer\", server_name=~\"$server\"}\n  ) * 100\n)", "refId": "A" }]
-    },
-    {
-      "id": 4,
-      "title": "월 비용 (USD)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "currencyUSD", "decimals": 0,
-          "color": { "mode": "thresholds" },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1000 }, { "color": "red", "value": 3000 }] }
-        }
-      },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
-      "targets": [{ "expr": "sum(msp_csp_cost_monthly_total{customer_id=\"$customer\"})", "refId": "A" }]
     },
     {
       "title": "CPU 사용률",

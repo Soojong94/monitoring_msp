@@ -162,27 +162,28 @@
     },
     {
       "id": 4,
-      "title": "전체 월 비용 (USD)",
-      "type": "stat",
+      "title": "평균 메모리 사용률",
+      "type": "gauge",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "sum(msp_csp_cost_monthly_total{customer_id=~\"$customer\"})",
+          "expr": "avg(\n  (1 - node_memory_MemAvailable_bytes{customer_id=~\"$customer\"}\n     / node_memory_MemTotal_bytes{customer_id=~\"$customer\"}\n  ) * 100\n)",
           "refId": "A",
           "legendFormat": "__auto"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyUSD",
-          "decimals": 0,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 5000 },
-              { "color": "red", "value": 10000 }
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
             ]
           },
           "color": { "mode": "thresholds" }
@@ -191,11 +192,8 @@
       },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
       }
     },
     {
@@ -233,13 +231,6 @@
           "instant": true,
           "format": "table"
         },
-        {
-          "expr": "sum by (customer_id) (msp_csp_cost_monthly_total)",
-          "refId": "D",
-          "legendFormat": "월 비용 (USD)",
-          "instant": true,
-          "format": "table"
-        }
       ],
       "transformations": [{ "id": "merge", "options": {} }],
       "fieldConfig": {
@@ -298,13 +289,6 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Value #D" },
-            "properties": [
-              { "id": "displayName", "value": "월 비용 (USD)" },
-              { "id": "unit", "value": "currencyUSD" }
-            ]
-          },
-          {
             "matcher": { "id": "byName", "options": "Value #A" },
             "properties": [
               { "id": "displayName", "value": "서버 수" }
@@ -314,7 +298,7 @@
       },
       "options": {
         "showHeader": true,
-        "sortBy": [{ "displayName": "월 비용 (USD)", "desc": true }],
+        "sortBy": [{ "displayName": "평균 CPU (%)", "desc": true }],
         "footer": {
           "show": true,
           "reducer": ["sum"],
@@ -415,61 +399,6 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
-      "id": 103,
-      "title": "비용 추이",
-      "type": "row"
-    },
-    {
-      "id": 8,
-      "title": "고객별 월 비용 추이",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [
-        {
-          "expr": "sum by (customer_id) (msp_csp_cost_monthly_total{customer_id=~\"$customer\"})",
-          "refId": "A",
-          "legendFormat": "{{customer_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "currencyUSD",
-          "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "linear",
-            "barAlignment": 0,
-            "lineWidth": 1,
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "spanNulls": false,
-            "showPoints": "auto",
-            "pointSize": 5,
-            "stacking": { "mode": "normal", "group": "A" },
-            "axisPlacement": "auto",
-            "scaleDistribution": { "type": "linear" }
-          },
-          "color": { "mode": "palette-classic" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": ["lastNotNull"]
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
       "id": 104,
       "title": "네트워크 트래픽 현황",
       "type": "row"
@@ -478,7 +407,7 @@
       "id": 9,
       "title": "전체 수신 (Inbound)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 33 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [{
         "expr": "sum(rate(node_network_receive_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
@@ -497,7 +426,7 @@
       "id": 10,
       "title": "전체 송신 (Outbound)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 33 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [{
         "expr": "sum(rate(node_network_transmit_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
@@ -516,7 +445,7 @@
       "id": 11,
       "title": "고객별 수신 트래픽 (Inbound)",
       "type": "bargauge",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 33 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [{
         "expr": "sum by (customer_id) (rate(node_network_receive_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
@@ -536,7 +465,7 @@
       "id": 12,
       "title": "고객별 송신 트래픽 (Outbound)",
       "type": "bargauge",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 33 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [{
         "expr": "sum by (customer_id) (rate(node_network_transmit_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
@@ -556,7 +485,7 @@
       "id": 13,
       "title": "고객별 네트워크 트래픽 추이",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
