@@ -1,47 +1,17 @@
 # ============================================
 # MSP Monitoring - Docker Compose (Local Test Override)
 # ============================================
-# Mock 데이터로 대시보드 UI를 검증하기 위한 오버라이드.
+# 실제 Alloy 에이전트로 이 PC의 OS 메트릭을 수집하여 검증.
 #
 # 사용법:
-#   docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local build
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local up -d
 
 services:
-  # CSP Collector를 Mock Exporter로 교체
-  csp-collector:
-    build:
-      context: ./mock/metrics-exporter
-      dockerfile: Dockerfile
-    environment: []
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:9091/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-
-  # Alloy Agent 시뮬레이터 (OS 메트릭 remote_write push)
-  alloy-simulator:
-    build:
-      context: ./mock/alloy-simulator
-      dockerfile: Dockerfile
-    container_name: msp-alloy-simulator
-    restart: unless-stopped
-    environment:
-      - VM_URL=http://victoriametrics:8428
-      - PUSH_INTERVAL=15
-    networks:
-      - msp-net
-    depends_on:
-      victoriametrics:
-        condition: service_healthy
-
   # -----------------------------------------------
-  # 실제 Alloy 에이전트 테스트 (고객 서버 시뮬레이션)
+  # 실제 Alloy 에이전트 (이 PC의 OS 메트릭 수집 → VictoriaMetrics push)
   # -----------------------------------------------
-  # 컨테이너 내부의 실제 OS 메트릭을 수집하여 중앙 서버로 push.
-  # 프로덕션에서는 고객 서버에 바이너리로 설치됨.
+  # 프로덕션에서는 고객 서버에 바이너리로 설치되는 것과 동일한 설정.
+  # 로컬에서는 Docker 컨테이너로 실행하여 동작 검증.
   test-agent:
     image: grafana/alloy:v1.5.1
     container_name: msp-test-agent
@@ -68,7 +38,7 @@ services:
       victoriametrics:
         condition: service_healthy
 
-  # VictoriaMetrics: 스크래핑 설정 추가 + IPv6 이슈 방지
+  # VictoriaMetrics: 포트 노출 + IPv6 이슈 방지
   victoriametrics:
     command:
       - '-storageDataPath=/victoria-metrics-data'
@@ -76,10 +46,6 @@ services:
       - '-httpListenAddr=:8428'
       - '-selfScrapeInterval=15s'
       - '-dedup.minScrapeInterval=30s'
-      - '-promscrape.config=/etc/vm/scrape.yml'
-    volumes:
-      - vm-data:/victoria-metrics-data
-      - ./config/victoriametrics/scrape.yml:/etc/vm/scrape.yml:ro
     ports:
       - "8428:8428"
     healthcheck:
@@ -88,6 +54,15 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # CSP Collector: 로컬에서는 비활성화 (크레덴셜 없음)
+  csp-collector:
+    entrypoint: ["sh", "-c", "echo 'CSP collector disabled in local mode' && sleep infinity"]
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 60s
+      timeout: 5s
+      retries: 1
 
   # Grafana 직접 접근 (디버깅용)
   grafana:
