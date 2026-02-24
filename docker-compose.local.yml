@@ -54,6 +54,8 @@ services:
       - CUSTOMER_ID=test-local
       - SERVER_NAME=test-vm-01
       - ENVIRONMENT=test
+      - CSP=local
+      - REGION=local
       - REMOTE_WRITE_URL=http://victoriametrics:8428/api/v1/write
     volumes:
       - ./mock/alloy-test/config.alloy:/etc/alloy/config.alloy:ro

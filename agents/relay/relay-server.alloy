@@ -1,0 +1,105 @@
+// ============================================
+// MSP Monitoring - Relay Server Config
+// ============================================
+// Outbound은 가능하나, 내부 서버들이 직접 외부로 나갈 수 없는 환경의
+// 중계 에이전트. 내부 서버들로부터 메트릭을 받아 중앙 서버로 전달.
+//
+// [내부 서버들] → :9999 → [이 릴레이] → [중앙 서버]
+//
+// 필수 환경변수:
+//   REMOTE_WRITE_URL   : 중앙 서버 주소 (예: http://1.2.3.4:8880/api/v1/write)
+//
+// 선택 환경변수 (릴레이 서버 자체 메트릭도 수집할 경우):
+//   RELAY_CUSTOMER_ID  : 릴레이 서버의 customer_id
+//   RELAY_SERVER_NAME  : 릴레이 서버명
+//   RELAY_CSP          : 릴레이 서버의 CSP
+//   RELAY_REGION       : 릴레이 서버의 리전
+
+// -----------------------------------------------
+// 1. 내부 에이전트들의 remote_write 수신 (포트 9999)
+// -----------------------------------------------
+// 내부 서버의 Alloy 에이전트가 이 포트로 push
+prometheus.receive_http "from_internal_agents" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999
+  }
+  forward_to = [prometheus.remote_write.central.receiver]
+}
+
+// -----------------------------------------------
+// 2. 중앙 서버로 전달 (릴레이 서버만 outbound 사용)
+// -----------------------------------------------
+prometheus.remote_write "central" {
+  endpoint {
+    url = env("REMOTE_WRITE_URL")
+
+    queue_config {
+      capacity             = 10000
+      max_shards           = 8
+      min_shards           = 2
+      max_samples_per_send = 1000
+      batch_send_deadline  = "5s"
+      min_backoff          = "30ms"
+      max_backoff          = "10s"
+    }
+  }
+}
+
+// -----------------------------------------------
+// 3. (선택) 릴레이 서버 자체 OS 메트릭 수집
+// -----------------------------------------------
+// 릴레이 서버 자체도 모니터링하고 싶은 경우 아래 블록 활성화
+// RELAY_CUSTOMER_ID, RELAY_SERVER_NAME 등 환경변수 설정 필요
+
+prometheus.exporter.unix "relay_self" {
+  set_collectors = [
+    "cpu",
+    "meminfo",
+    "loadavg",
+    "filesystem",
+    "netdev",
+    "diskstats",
+    "uname",
+  ]
+}
+
+prometheus.scrape "relay_self" {
+  targets         = prometheus.exporter.unix.relay_self.targets
+  forward_to      = [prometheus.relabel.relay_labels.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.relabel "relay_labels" {
+  forward_to = [prometheus.remote_write.central.receiver]
+
+  rule {
+    action       = "replace"
+    target_label = "customer_id"
+    replacement  = env("RELAY_CUSTOMER_ID")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "server_name"
+    replacement  = env("RELAY_SERVER_NAME")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "csp"
+    replacement  = env("RELAY_CSP")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "region"
+    replacement  = env("RELAY_REGION")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "role"
+    replacement  = "relay"
+  }
+}

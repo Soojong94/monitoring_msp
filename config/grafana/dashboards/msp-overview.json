@@ -466,6 +466,121 @@
           "calcs": ["lastNotNull"]
         }
       }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 104,
+      "title": "네트워크 트래픽 현황",
+      "type": "row"
+    },
+    {
+      "id": 9,
+      "title": "전체 수신 (Inbound)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum(rate(node_network_receive_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100000000 }, { "color": "red", "value": 1000000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 10,
+      "title": "전체 송신 (Outbound)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum(rate(node_network_transmit_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100000000 }, { "color": "red", "value": 1000000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 11,
+      "title": "고객별 수신 트래픽 (Inbound)",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum by (customer_id) (rate(node_network_receive_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+        "legendFormat": "{{customer_id}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps", "min": 0,
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+    },
+    {
+      "id": 12,
+      "title": "고객별 송신 트래픽 (Outbound)",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{
+        "expr": "sum by (customer_id) (rate(node_network_transmit_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+        "legendFormat": "{{customer_id}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps", "min": 0,
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "steps": [{ "color": "orange", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+    },
+    {
+      "id": 13,
+      "title": "고객별 네트워크 트래픽 추이",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum by (customer_id) (rate(node_network_receive_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+          "legendFormat": "▼ {{customer_id}} 수신",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (customer_id) (rate(node_network_transmit_bytes_total{customer_id=~\"$customer\", device!=\"lo\"}[5m]))",
+          "legendFormat": "▲ {{customer_id}} 송신",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+      }
     }
   ],
   "annotations": {

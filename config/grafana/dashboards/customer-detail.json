@@ -56,6 +56,40 @@
         "regex": "",
         "skipUrlSync": false,
         "sort": 1
+      },
+      {
+        "name": "csp",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(node_uname_info{customer_id=\"$customer\"}, csp)",
+        "definition": "label_values(node_uname_info{customer_id=\"$customer\"}, csp)",
+        "current": {},
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "options": [],
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1
+      },
+      {
+        "name": "region",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(node_uname_info{customer_id=\"$customer\", csp=~\"$csp\"}, region)",
+        "definition": "label_values(node_uname_info{customer_id=\"$customer\", csp=~\"$csp\"}, region)",
+        "current": {},
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "options": [],
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1
       }
     ]
   },
@@ -190,56 +224,126 @@
       }]
     },
     {
-      "title": "네트워크",
+      "title": "네트워크 트래픽",
       "type": "row",
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
       "id": 103,
       "collapsed": false
     },
     {
-      "id": 7,
-      "title": "네트워크 트래픽 (수신)",
-      "type": "timeseries",
+      "id": 30,
+      "title": "현재 총 수신 (Inbound)",
+      "type": "stat",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 },
       "fieldConfig": {
         "defaults": {
           "unit": "Bps",
-          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 20 },
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50000000 }, { "color": "red", "value": 500000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 31,
+      "title": "현재 총 송신 (Outbound)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50000000 }, { "color": "red", "value": 500000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 32,
+      "title": "Top 5 수신 서버",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps", "min": 0,
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "targets": [{ "expr": "topk(5, sum by (server_name) (rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m])))", "legendFormat": "{{server_name}}", "refId": "A" }]
+    },
+    {
+      "id": 33,
+      "title": "Top 5 송신 서버",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps", "min": 0,
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "steps": [{ "color": "orange", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "targets": [{ "expr": "topk(5, sum by (server_name) (rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m])))", "legendFormat": "{{server_name}}", "refId": "A" }]
+    },
+    {
+      "id": 7,
+      "title": "서버별 수신 트래픽 추이",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 },
           "color": { "mode": "palette-classic" }
         }
       },
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      },
       "targets": [{
-        "expr": "rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m])",
-        "legendFormat": "{{server_name}} rx",
+        "expr": "sum by (server_name) (rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))",
+        "legendFormat": "▼ {{server_name}}",
         "refId": "A"
       }]
     },
     {
       "id": 8,
-      "title": "네트워크 트래픽 (송신)",
+      "title": "서버별 송신 트래픽 추이",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "fieldConfig": {
         "defaults": {
           "unit": "Bps",
-          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 20 },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 },
           "color": { "mode": "palette-classic" }
         }
       },
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      },
       "targets": [{
-        "expr": "rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m])",
-        "legendFormat": "{{server_name}} tx",
+        "expr": "sum by (server_name) (rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))",
+        "legendFormat": "▲ {{server_name}}",
         "refId": "A"
       }]
     },
     {
       "title": "서버 요약 테이블",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
       "id": 104,
       "collapsed": false
     },
@@ -248,7 +352,7 @@
       "title": "서버별 리소스 요약",
       "type": "table",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 33 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
       "fieldConfig": {
         "defaults": { "decimals": 1 },
         "overrides": [
@@ -275,6 +379,22 @@
               { "id": "thresholds", "value": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}] } },
               { "id": "custom.displayMode", "value": "color-background-solid" }
             ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "수신 (Bps)" },
+            "properties": [
+              { "id": "unit", "value": "Bps" },
+              { "id": "custom.displayMode", "value": "color-text" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10000000}] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "송신 (Bps)" },
+            "properties": [
+              { "id": "unit", "value": "Bps" },
+              { "id": "custom.displayMode", "value": "color-text" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 10000000}] } }
+            ]
           }
         ]
       },
@@ -283,7 +403,9 @@
       "targets": [
         { "expr": "clamp_min((1 - avg by (server_name) (rate(node_cpu_seconds_total{customer_id=\"$customer\", server_name=~\"$server\", mode=\"idle\"}[5m]))) * 100, 0)", "legendFormat": "CPU (%)", "refId": "A", "format": "table", "instant": true },
         { "expr": "(1 - node_memory_MemAvailable_bytes{customer_id=\"$customer\", server_name=~\"$server\"} / node_memory_MemTotal_bytes{customer_id=\"$customer\", server_name=~\"$server\"}) * 100", "legendFormat": "메모리 (%)", "refId": "B", "format": "table", "instant": true },
-        { "expr": "(1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"} / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"}) * 100", "legendFormat": "디스크 (%)", "refId": "C", "format": "table", "instant": true }
+        { "expr": "(1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"} / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=~\"$server\", mountpoint=\"/\"}) * 100", "legendFormat": "디스크 (%)", "refId": "C", "format": "table", "instant": true },
+        { "expr": "sum by (server_name) (rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))", "legendFormat": "수신 (Bps)", "refId": "D", "format": "table", "instant": true },
+        { "expr": "sum by (server_name) (rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=~\"$server\", device!=\"lo\"}[5m]))", "legendFormat": "송신 (Bps)", "refId": "E", "format": "table", "instant": true }
       ]
     }
   ]

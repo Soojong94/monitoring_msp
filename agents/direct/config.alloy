@@ -1,0 +1,89 @@
+// ============================================
+// MSP Monitoring - Direct Agent Config
+// ============================================
+// Outbound 인터넷 접근이 가능한 서버용.
+// 수집한 메트릭을 중앙 서버로 직접 push.
+//
+// 필수 환경변수:
+//   CUSTOMER_ID        : 고객사 식별자 (예: kt, naver)
+//   SERVER_NAME        : 서버명 (예: kt-prod-web-01)
+//   CSP                : 클라우드 종류 (aws, kt, naver, nhn)
+//   REGION             : 리전 (예: ap-northeast-2, kc1)
+//   ENVIRONMENT        : 환경 (prod, staging, test)
+//   REMOTE_WRITE_URL   : 중앙 서버 주소 (예: http://1.2.3.4:8880/api/v1/write)
+
+// --- OS 메트릭 수집 (node_exporter 내장) ---
+prometheus.exporter.unix "node" {
+  // CPU, 메모리, 부하, 파일시스템, 네트워크, 디스크 I/O, 시스템 정보 수집
+  set_collectors = [
+    "cpu",
+    "meminfo",
+    "loadavg",
+    "filesystem",
+    "netdev",
+    "diskstats",
+    "uname",
+    "time",
+  ]
+}
+
+// --- 15초 간격 스크래핑 ---
+prometheus.scrape "node" {
+  targets         = prometheus.exporter.unix.node.targets
+  forward_to      = [prometheus.relabel.add_labels.receiver]
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+}
+
+// --- 고객/서버/CSP 라벨 추가 ---
+prometheus.relabel "add_labels" {
+  forward_to = [prometheus.remote_write.central.receiver]
+
+  rule {
+    action       = "replace"
+    target_label = "customer_id"
+    replacement  = env("CUSTOMER_ID")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "server_name"
+    replacement  = env("SERVER_NAME")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "csp"
+    replacement  = env("CSP")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "region"
+    replacement  = env("REGION")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "environment"
+    replacement  = env("ENVIRONMENT")
+  }
+}
+
+// --- 중앙 서버로 직접 remote_write push ---
+prometheus.remote_write "central" {
+  endpoint {
+    url = env("REMOTE_WRITE_URL")
+
+    // 재전송 설정: 일시적 네트워크 오류 대응
+    queue_config {
+      capacity             = 2500
+      max_shards           = 4
+      min_shards           = 1
+      max_samples_per_send = 500
+      batch_send_deadline  = "5s"
+      min_backoff          = "30ms"
+      max_backoff          = "5s"
+    }
+  }
+}

@@ -6,7 +6,7 @@
 
 // --- OS 메트릭 수집 (node_exporter 내장) ---
 prometheus.exporter.unix "node" {
-  set_collectors     = ["cpu", "meminfo", "loadavg", "filesystem", "netdev", "uname"]
+  set_collectors     = ["cpu", "meminfo", "loadavg", "filesystem", "netdev", "diskstats", "uname"]
   rootfs_path        = "/host/root"
   procfs_path        = "/host/proc"
   sysfs_path         = "/host/sys"
@@ -19,7 +19,7 @@ prometheus.scrape "node" {
   scrape_interval = "15s"
 }
 
-// --- 고객/서버 라벨 추가 ---
+// --- 고객/서버/CSP/리전 라벨 추가 ---
 prometheus.relabel "customer_labels" {
   forward_to = [prometheus.remote_write.central.receiver]
 
@@ -39,6 +39,18 @@ prometheus.relabel "customer_labels" {
     action       = "replace"
     target_label = "environment"
     replacement  = env("ENVIRONMENT")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "csp"
+    replacement  = env("CSP")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "region"
+    replacement  = env("REGION")
   }
 }
 

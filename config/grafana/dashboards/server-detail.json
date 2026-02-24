@@ -170,18 +170,118 @@
       "collapsed": false
     },
     {
+      "id": 20,
+      "title": "현재 수신 (Inbound)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10000000 }, { "color": "red", "value": 100000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 21,
+      "title": "현재 송신 (Outbound)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10000000 }, { "color": "red", "value": 100000000 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 22,
+      "title": "총 수신량 (세션 누적)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "sum(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"})", "refId": "A" }]
+    },
+    {
+      "id": 23,
+      "title": "총 송신량 (세션 누적)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "orange", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "sum(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"})", "refId": "A" }]
+    },
+    {
       "id": 9,
-      "title": "네트워크 트래픽",
+      "title": "네트워크 트래픽 추이 (NIC별)",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
       "fieldConfig": {
-        "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15 }, "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15 },
+          "color": { "mode": "palette-classic" }
+        }
       },
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+      },
       "targets": [
-        { "expr": "rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m])", "legendFormat": "수신 ({{device}})", "refId": "A" },
-        { "expr": "rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m])", "legendFormat": "송신 ({{device}})", "refId": "B" }
+        { "expr": "rate(node_network_receive_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m])", "legendFormat": "수신 ▼ {{device}}", "refId": "A" },
+        { "expr": "rate(node_network_transmit_bytes_total{customer_id=\"$customer\", server_name=\"$server\", device!=\"lo\"}[5m])", "legendFormat": "송신 ▲ {{device}}", "refId": "B" }
+      ]
+    },
+    {
+      "title": "디스크 I/O",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "id": 104,
+      "collapsed": false
+    },
+    {
+      "id": 10,
+      "title": "디스크 읽기/쓰기 (Bps)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }
+      },
+      "targets": [
+        { "expr": "rate(node_disk_read_bytes_total{customer_id=\"$customer\", server_name=\"$server\"}[5m])", "legendFormat": "읽기 ▼ {{device}}", "refId": "A" },
+        { "expr": "rate(node_disk_written_bytes_total{customer_id=\"$customer\", server_name=\"$server\"}[5m])", "legendFormat": "쓰기 ▲ {{device}}", "refId": "B" }
       ]
     }
   ]
