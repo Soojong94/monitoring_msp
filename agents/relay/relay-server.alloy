@@ -3,17 +3,18 @@
 // ============================================
 // Outbound은 가능하나, 내부 서버들이 직접 외부로 나갈 수 없는 환경의
 // 중계 에이전트. 내부 서버들로부터 메트릭을 받아 중앙 서버로 전달.
+// 동시에 릴레이 서버 자체 OS 메트릭도 수집하여 중앙 서버로 전송.
 //
 // [내부 서버들] → :9999 → [이 릴레이] → [중앙 서버]
+//                  [릴레이 자체] ↗
 //
 // 필수 환경변수:
 //   REMOTE_WRITE_URL   : 중앙 서버 주소 (예: http://1.2.3.4:8880/api/v1/write)
-//
-// 선택 환경변수 (릴레이 서버 자체 메트릭도 수집할 경우):
 //   RELAY_CUSTOMER_ID  : 릴레이 서버의 customer_id
 //   RELAY_SERVER_NAME  : 릴레이 서버명
 //   RELAY_CSP          : 릴레이 서버의 CSP
 //   RELAY_REGION       : 릴레이 서버의 리전
+//   RELAY_ENVIRONMENT  : 환경 (prod, staging, test)
 
 // -----------------------------------------------
 // 1. 내부 에이전트들의 remote_write 수신 (포트 9999)
@@ -47,10 +48,8 @@ prometheus.remote_write "central" {
 }
 
 // -----------------------------------------------
-// 3. (선택) 릴레이 서버 자체 OS 메트릭 수집
+// 3. 릴레이 서버 자체 OS 메트릭 수집
 // -----------------------------------------------
-// 릴레이 서버 자체도 모니터링하고 싶은 경우 아래 블록 활성화
-// RELAY_CUSTOMER_ID, RELAY_SERVER_NAME 등 환경변수 설정 필요
 
 prometheus.exporter.unix "relay_self" {
   set_collectors = [
@@ -95,6 +94,12 @@ prometheus.relabel "relay_labels" {
     action       = "replace"
     target_label = "region"
     replacement  = env("RELAY_REGION")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "environment"
+    replacement  = env("RELAY_ENVIRONMENT")
   }
 
   rule {

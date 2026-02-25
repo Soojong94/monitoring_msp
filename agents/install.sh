@@ -15,7 +15,7 @@
 #     --mode=direct \
 #     --remote-write-url=http://[중앙서버IP]:8880/api/v1/write
 #
-#   # 릴레이 서버 모드 (내부 에이전트들의 트래픽을 중앙으로 전달)
+#   # 릴레이 서버 모드 (내부 에이전트들의 트래픽을 중앙으로 전달 + 자체 메트릭 수집)
 #   sudo ./install.sh \
 #     --mode=relay-server \
 #     --customer-id=kt \
@@ -96,6 +96,10 @@ validate_args() {
       [[ -z "$REMOTE_WRITE_URL" ]] && echo "[ERROR] --remote-write-url 필요" && exit 1
       ;;
     relay-server)
+      [[ -z "$CUSTOMER_ID" ]]    && echo "[ERROR] --customer-id 필요" && exit 1
+      [[ -z "$SERVER_NAME" ]]    && echo "[ERROR] --server-name 필요" && exit 1
+      [[ -z "$CSP" ]]            && echo "[ERROR] --csp 필요" && exit 1
+      [[ -z "$REGION" ]]         && echo "[ERROR] --region 필요" && exit 1
       [[ -z "$REMOTE_WRITE_URL" ]] && echo "[ERROR] --remote-write-url 필요" && exit 1
       ;;
     relay-agent)
@@ -240,6 +244,7 @@ RELAY_CUSTOMER_ID=${CUSTOMER_ID:-relay}
 RELAY_SERVER_NAME=${SERVER_NAME:-relay-server}
 RELAY_CSP=${CSP:-unknown}
 RELAY_REGION=${REGION:-unknown}
+RELAY_ENVIRONMENT=${ENVIRONMENT}
 ENVEOF
       ;;
 
