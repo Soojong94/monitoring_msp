@@ -33,7 +33,7 @@
 #     --region=kc1 \
 #     --environment=prod \
 #     --mode=relay-agent \
-#     --relay-url=http://10.0.1.5:9999/api/v1/write
+#     --relay-url=http://10.0.1.5:9999/api/v1/metrics/write
 
 set -euo pipefail
 

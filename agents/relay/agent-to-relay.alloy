@@ -12,7 +12,7 @@
 //   CSP                : 클라우드 종류 (aws, kt, naver, nhn)
 //   REGION             : 리전 (예: ap-northeast-2, kc1)
 //   ENVIRONMENT        : 환경 (prod, staging, test)
-//   RELAY_URL          : 릴레이 에이전트 내부 주소 (예: http://10.0.1.5:9999/api/v1/write)
+//   RELAY_URL          : 릴레이 에이전트 내부 주소 (예: http://10.0.1.5:9999/api/v1/metrics/write)
 
 // --- OS 메트릭 수집 (node_exporter 내장) ---
 prometheus.exporter.unix "node" {

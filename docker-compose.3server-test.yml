@@ -1,0 +1,79 @@
+# ============================================
+# MSP Monitoring - 3서버 구조 테스트
+# ============================================
+# Docker로 3서버 릴레이 구조 시뮬레이션:
+#
+#   [agent] → relay:9999 → [relay] → victoriametrics:8428 → [grafana]
+#
+# 사용법:
+#   docker compose -f docker-compose.yml -f docker-compose.3server-test.yml up -d
+#
+# 확인:
+#   http://localhost:8880  (Grafana, admin/changeme)
+#   customer_id=test, server_name=relay-01 또는 agent-01
+
+services:
+  # -----------------------------------------------
+  # 릴레이 서버 (relay-server 모드)
+  # 포트 9999로 agent 메트릭 수신 → victoriametrics로 전달
+  # 자체 OS 메트릭도 함께 수집
+  # -----------------------------------------------
+  relay:
+    image: grafana/alloy:v1.5.1
+    container_name: msp-relay
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --stability.level=generally-available
+    environment:
+      - REMOTE_WRITE_URL=http://victoriametrics:8428/api/v1/write
+      - RELAY_CUSTOMER_ID=test
+      - RELAY_SERVER_NAME=relay-01
+      - RELAY_CSP=local
+      - RELAY_REGION=local
+      - RELAY_ENVIRONMENT=test
+    volumes:
+      - ./agents/relay/relay-server.alloy:/etc/alloy/config.alloy:ro
+    ports:
+      - "9999:9999"
+    networks:
+      - msp-net
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+
+  # -----------------------------------------------
+  # 수집 전용 에이전트 (relay-agent 모드)
+  # outbound 없이 relay:9999 으로만 push
+  # -----------------------------------------------
+  agent:
+    image: grafana/alloy:v1.5.1
+    container_name: msp-agent
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --stability.level=generally-available
+    environment:
+      - CUSTOMER_ID=test
+      - SERVER_NAME=agent-01
+      - CSP=local
+      - REGION=local
+      - ENVIRONMENT=test
+      - RELAY_URL=http://relay:9999/api/v1/metrics/write
+    volumes:
+      - ./agents/relay/agent-to-relay.alloy:/etc/alloy/config.alloy:ro
+    networks:
+      - msp-net
+    depends_on:
+      - relay
+
+  # Grafana 직접 접근 포트 추가 (디버깅용)
+  grafana:
+    ports:
+      - "3000:3000"
+
+volumes:
+  vm-data:
+  grafana-data:
