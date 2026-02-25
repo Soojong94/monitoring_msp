@@ -2,185 +2,230 @@
 
 클라우드 MSP를 위한 **다중 고객 서버 통합 모니터링** 시스템.
 
-20개 이상의 고객 계정, 다중 CSP(AWS/Azure/GCP/NCP)의 클라우드 서버를
-하나의 중앙 대시보드에서 실시간으로 관리한다.
+Ubuntu 중앙 서버 1대에서 모든 고객사 서버의 OS 메트릭(CPU/메모리/디스크/네트워크)을 수집하여 Grafana로 시각화한다.
 
 ## Architecture
 
 ```
-[고객 서버들]                              [MSP 중앙 서버]
-┌──────────────────┐                   ┌─────────────────────────────────┐
-│ Customer A VM-1  │                   │                                 │
-│  (Alloy Agent)   │──push──┐         │  ┌───────────────────────────┐  │
-├──────────────────┤        │         │  │ VictoriaMetrics (:8428)   │  │
-│ Customer A VM-2  │──push──┤         │  │ (시계열 저장소)            │  │
-│  (Alloy Agent)   │        │  HTTPS  │  └─────────┬─────────────────┘  │
-├──────────────────┤        ├────────▶│            │                    │
-│ Customer B VM-1  │──push──┤         │  ┌─────────▼─────────────────┐  │
-│  (Alloy Agent)   │        │         │  │ Grafana (:3000)           │  │
-└──────────────────┘        │         │  │ (대시보드 시각화)          │  │
-                            │         │  └─────────┬─────────────────┘  │
-  CSP APIs ─────────────────┘         │            │                    │
-  (AWS/Azure/GCP/NCP)                 │  ┌─────────▼─────────────────┐  │
-       │                              │  │ Nginx (:80/443)           │  │
-       ▼                              │  │ (리버스 프록시 + Auth)     │  │
-  ┌────────────────┐                  │  └───────────────────────────┘  │
-  │ CSP Collector  │                  │                                 │
-  │ (비용/리소스)   │                  │  ┌───────────────────────────┐  │
-  └────────────────┘                  │  │ CSP Collector (:9091)     │  │
-                                      │  │ (CSP API 메트릭 수집)      │  │
-                                      │  └───────────────────────────┘  │
-                                      └─────────────────────────────────┘
+[고객사 서버 — outbound 가능]
+  Server A  ─── Alloy (direct) ──────────────────────────┐
+  Server B  ─── Alloy (direct) ──────────────────────────┤
+                                                          │  HTTP
+[고객사 서버 — outbound 차단]                             ▼  :8880
+  Server C  ─── Alloy (relay-agent) ─┐        ┌─────────────────────┐
+  Server D  ─── Alloy (relay-agent) ─┤        │   중앙 서버 (Ubuntu) │
+                                     ▼        │                     │
+                          Alloy (relay-server) │  VictoriaMetrics   │
+                              :9999 수신       │  Grafana            │
+                                     │        │  Nginx (8880/8443)  │
+                                     └───────▶└─────────────────────┘
 ```
 
-### Data Flow
+**에이전트 3가지 모드:**
 
-| 데이터 종류 | 수집 방식 | 수집 주체 | 설명 |
-|---|---|---|---|
-| OS 메트릭 (CPU, 메모리, 디스크, 네트워크) | **Push** (고객→중앙) | 고객 서버의 Grafana Alloy | 15초 간격, remote_write |
-| CSP 비용/리소스 | **Pull** (중앙→CSP API) | 중앙 서버의 CSP Collector | 5분 간격, CloudWatch 등 |
+| 모드 | 대상 서버 | 설명 |
+|---|---|---|
+| `direct` | outbound 가능 서버 | 중앙 서버로 직접 push |
+| `relay-server` | 고객사 내 게이트웨이 역할 서버 | 내부 에이전트 메트릭 수신(:9999) + 중앙으로 전달 + 자체 수집 |
+| `relay-agent` | outbound 차단 서버 | relay-server 내부 IP:9999 로 push |
 
 ## Tech Stack
 
-| 컴포넌트 | 기술 | 선정 이유 |
+| 컴포넌트 | 기술 | 역할 |
 |---|---|---|
-| 시계열 저장소 | VictoriaMetrics v1.106 | Prometheus 대비 10x 메모리 효율, remote_write 내장 |
-| 시각화 | Grafana 10.4 | 프로비저닝 대시보드, 변수 기반 다중 고객 전환 |
-| 에이전트 | Grafana Alloy v1.5 | 단일 바이너리(~50MB), Docker 불필요, systemd 관리 |
-| CSP 수집 | Python (aiohttp) | 플러그인 아키텍처, 다중 CSP 확장 가능 |
-| 리버스 프록시 | Nginx 1.25 | Basic Auth, TLS 종단, 에이전트 write 프록시 |
-| 오케스트레이션 | Docker Compose | 중앙 서버 전체 스택 관리 |
+| 시계열 저장소 | VictoriaMetrics v1.106 | remote_write 수신, PromQL 지원 |
+| 시각화 | Grafana 10.4 | 다중 고객 대시보드 3종 |
+| 에이전트 | Grafana Alloy v1.5 | 단일 바이너리, systemd, Docker 불필요 |
+| 리버스 프록시 | Nginx | Basic Auth, 에이전트 write 엔드포인트 노출 |
+| 오케스트레이션 | Docker Compose | 중앙 서버 스택 관리 |
 
-## Quick Start (Local Test)
+## 중앙 서버 설치 (Ubuntu)
 
 ### Prerequisites
 
-- Docker Desktop (Windows/Mac) 또는 Docker Engine (Linux)
-- Git
+- Ubuntu 20.04+
+- Docker Engine + Docker Compose Plugin
+- 포트 오픈: 8880 (에이전트 push + Grafana 접근)
 
-### 1. Clone & Setup
+### 설치
 
 ```bash
+# Docker 설치
+sudo apt update && sudo apt install -y docker.io docker-compose-plugin git
+sudo usermod -aG docker $USER && newgrp docker
+
+# 레포 클론
 git clone https://github.com/Soojong94/monitoring_msp.git
 cd monitoring_msp
-cp .env.example .env.local
+
+# 환경변수 설정 (비밀번호 변경 권장)
+cp .env.example .env
+nano .env
+
+# 실행
+docker compose up -d
+
+# 상태 확인
+docker compose ps
 ```
 
-### 2. Build & Run
+### 접근
+
+- **Grafana 대시보드**: `http://<중앙서버_IP>:8880`
+- **에이전트 write 엔드포인트**: `http://<중앙서버_IP>:8880/api/v1/write`
+
+---
+
+## 고객사 서버 에이전트 설치
+
+레포를 clone하거나 `agents/` 폴더만 대상 서버로 복사한 뒤 실행.
+
+### Direct 모드 (outbound 가능 서버)
 
 ```bash
-# 이미지 빌드
-docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local build
-
-# 스택 기동
-docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local up -d
+sudo ./agents/install.sh \
+  --mode=direct \
+  --customer-id=kt \
+  --server-name=kt-prod-web-01 \
+  --csp=kt \
+  --region=kc1 \
+  --environment=prod \
+  --remote-write-url=http://<중앙서버_IP>:8880/api/v1/write
 ```
 
-### 3. Access
+### Relay-Server 모드 (고객사 내 게이트웨이)
 
-- **대시보드**: http://localhost:8880 (admin / admin123)
-- **Grafana 직접**: http://localhost:3000 (admin / admin123)
-- **VictoriaMetrics**: http://localhost:8428
-
-> 기동 후 약 1분 뒤부터 CPU rate() 데이터가 표시됩니다.
-
-### 4. Stop
+내부 서버들의 메트릭을 모아 중앙으로 전달 + 자신의 메트릭도 수집.
+포트 9999가 방화벽에서 열려야 함 (install.sh가 자동으로 오픈).
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local down
-
-# 볼륨(데이터)까지 삭제
-docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local down -v
+sudo ./agents/install.sh \
+  --mode=relay-server \
+  --customer-id=kt \
+  --server-name=kt-relay-01 \
+  --csp=kt \
+  --region=kc1 \
+  --environment=prod \
+  --remote-write-url=http://<중앙서버_IP>:8880/api/v1/write
 ```
+
+### Relay-Agent 모드 (outbound 차단 서버)
+
+```bash
+sudo ./agents/install.sh \
+  --mode=relay-agent \
+  --customer-id=kt \
+  --server-name=kt-prod-db-01 \
+  --csp=kt \
+  --region=kc1 \
+  --environment=prod \
+  --relay-url=http://<relay서버_내부IP>:9999/api/v1/metrics/write
+```
+
+---
+
+## 로컬 테스트 (Docker로 3서버 구조 시뮬레이션)
+
+실제 서버 없이 Windows/Mac에서 relay 구조를 검증할 때 사용.
+
+```
+[msp-agent] → relay:9999 → [msp-relay] → victoriametrics → [msp-grafana]
+```
+
+### 실행
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.3server-test.yml up -d
+```
+
+### 데이터 확인 (2~3분 후)
+
+```bash
+# relay-01, agent-01 둘 다 보이면 성공
+docker exec msp-victoriametrics wget -q -O - \
+  "http://127.0.0.1:8428/api/v1/label/server_name/values"
+```
+
+### 접근
+
+- Grafana: `http://localhost:8880` (admin / changeme)
+- Grafana 직접: `http://localhost:3000`
+
+### 종료
+
+```bash
+# 데이터 유지
+docker compose -f docker-compose.yml -f docker-compose.3server-test.yml down
+
+# 데이터 포함 완전 초기화
+docker compose -f docker-compose.yml -f docker-compose.3server-test.yml down -v
+```
+
+---
 
 ## Dashboards
 
 ### 1. MSP 전체 고객 현황 (`msp-overview`)
-- 총 고객 수 / 서버 수
-- 평균 CPU, 전체 월 비용
-- 고객별 현황 테이블 (CPU/메모리/비용)
-- 고객별 CPU/메모리 바 게이지
-- 비용 추이 차트
+- 총 고객 수 / 서버 수 / 평균 CPU / 평균 메모리
+- 고객별 현황 테이블 (CPU/메모리/네트워크)
+- 네트워크 트래픽 현황 (수신/송신)
 
 ### 2. 고객별 상세 현황 (`msp-customer-detail`)
-- 서버 수, 평균 CPU/메모리 게이지, 월 비용
-- 서버별 CPU/메모리 사용률 추이
-- 네트워크 트래픽 (수신/송신)
+- CSP/리전 필터, 서버별 CPU/메모리 추이
+- 네트워크 수신/송신 현황 (Top 5 + 추이)
 - 서버별 리소스 요약 테이블
 
 ### 3. 서버별 상세 현황 (`msp-server-detail`)
-- Uptime, CPU/메모리/디스크 게이지
-- CPU 추이 + Load Average
-- 메모리 추이 + Total/Available
-- 네트워크 트래픽 (디바이스별)
+- CPU/메모리/디스크 게이지 + 추이
+- 네트워크 트래픽 (NIC별 수신/송신)
+- Disk I/O (읽기/쓰기 Bps)
+
+---
 
 ## Directory Structure
 
 ```
 monitoring_msp/
-├── docker-compose.yml          # 프로덕션 스택 정의
-├── docker-compose.local.yml    # 로컬 테스트 오버라이드
-├── .env.example                # 환경변수 템플릿
-├── .env.local                  # 로컬 테스트 환경변수 (gitignore)
-├── Makefile                    # 빌드/실행 단축 명령어
+├── docker-compose.yml              # 중앙 서버 프로덕션 스택
+├── docker-compose.local.yml        # 로컬 단일 에이전트 테스트
+├── docker-compose.3server-test.yml # 로컬 3서버 구조 시뮬레이션
+├── .env.example                    # 환경변수 템플릿
 │
-├── collector/                  # CSP 메트릭 수집 서비스 (Python)
-│   ├── main.py                 # aiohttp 웹서버 + /metrics, /healthz
-│   ├── config.py               # 환경변수 설정
-│   ├── customers.yml           # 고객 정의 (Phase 2)
-│   ├── providers/
-│   │   ├── base.py             # BaseProvider 추상 클래스
-│   │   └── aws.py              # AWS 프로바이더 (Phase 2)
-│   └── models/
-│       ├── metric.py           # Metric 데이터클래스
-│       └── customer.py         # Customer 데이터클래스
+├── agents/                         # 고객 서버 에이전트 설치
+│   ├── install.sh                  # 통합 설치 스크립트 (direct/relay-server/relay-agent)
+│   ├── direct/
+│   │   └── config.alloy            # direct 모드 Alloy 설정
+│   └── relay/
+│       ├── relay-server.alloy      # relay-server 모드 (수신 + 전달 + 자체 수집)
+│       └── agent-to-relay.alloy    # relay-agent 모드 (내부망으로만 push)
 │
 ├── config/
 │   ├── grafana/
-│   │   ├── dashboards/         # 대시보드 JSON 3개
-│   │   └── provisioning/       # 데이터소스 + 대시보드 프로비저닝
-│   ├── nginx/
-│   │   └── nginx.conf          # 리버스 프록시 + agent write 프록시
-│   └── victoriametrics/
-│       └── scrape.yml          # CSP Collector 스크래핑 설정
+│   │   ├── dashboards/             # 대시보드 JSON 3종
+│   │   └── provisioning/           # 데이터소스 + 대시보드 자동 프로비저닝
+│   └── nginx/
+│       └── nginx.conf              # 리버스 프록시 + Basic Auth
 │
 ├── docker/
-│   ├── grafana/Dockerfile      # 대시보드 + 프로비저닝 bake
-│   ├── nginx/Dockerfile        # htpasswd + config bake
-│   └── csp-collector/Dockerfile
+│   ├── grafana/Dockerfile          # 대시보드 빌드 포함 이미지
+│   └── nginx/Dockerfile            # htpasswd 포함 이미지
 │
-└── mock/                       # 로컬 테스트용 Mock 서비스
-    ├── alloy-simulator/        # 14대 서버 OS 메트릭 시뮬레이터
-    ├── alloy-test/             # 실제 Alloy 에이전트 설정
-    └── metrics-exporter/       # 5개 고객 CSP 메트릭 Mock
+└── mock/
+    └── alloy-test/
+        └── config.alloy            # 로컬 테스트용 Alloy 설정
 ```
+
+---
 
 ## Roadmap
 
 | Phase | 내용 | 상태 |
 |---|---|---|
-| Phase 1 | 중앙 스택 + Mock 데이터 + 대시보드 3종 | **완료** |
-| Phase 2 | AWS boto3 실제 연동, Alloy 설치 스크립트 | 예정 |
-| Phase 3 | Azure/GCP/NCP 프로바이더 추가 | 예정 |
-| Phase 4 | Alert 규칙 + Slack/Email 알림 | 예정 |
-| Phase 5 | TLS 인증서 + 에이전트 인증 토큰 | 예정 |
-
-## Key Design Decisions
-
-### VictoriaMetrics > Prometheus
-- 20+ 고객 × 수십 서버 규모에서 메모리 효율 10배
-- remote_write 수신 내장 (별도 설정 불필요)
-- PromQL 100% 호환
-
-### Grafana Alloy > node_exporter + Prometheus
-- 고객 서버에 Docker 불필요 (단일 바이너리)
-- Push 방식 → 고객 서버 방화벽 인바운드 오픈 불필요
-- `customer_id`, `server_name` 라벨 자동 주입
-
-### 표준 node_exporter 메트릭 호환
-- 모든 대시보드 PromQL이 실제 Alloy와 Mock 양쪽에서 동작
-- `node_cpu_seconds_total` (카운터) + `rate()` 사용
-- `node_uname_info` 기반 고객/서버 자동 탐색
+| Phase 1 | 중앙 스택 + 대시보드 3종 + 에이전트 설치 스크립트 | **완료** |
+| Phase 2 | 실제 고객 서버(kt/naver/nhn/aws) 에이전트 설치 테스트 | **진행 중** |
+| Phase 3 | Alert 규칙 + Slack/Email 알림 | 예정 |
+| Phase 4 | TLS 인증서 + 에이전트 인증 토큰 | 예정 |
+| Phase 5 | 대시보드 고도화 (Uptime SLA, 이상 감지) | 예정 |
 
 ## License
 
