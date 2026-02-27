@@ -1,40 +1,35 @@
 // ============================================
-// MSP Monitoring - Direct Agent Config
+// MSP Monitoring - Agent → Relay Config (Windows)
 // ============================================
-// Outbound 인터넷 접근이 가능한 서버용.
-// 수집한 메트릭을 중앙 서버로 직접 push.
+// Outbound 인터넷 접근이 차단된 Windows 서버용.
+// 중앙 서버로 직접 push 불가 → 동일 네트워크 내 릴레이로 push.
+//
+// [이 서버] → 릴레이 내부 IP:9999 → [릴레이 서버] → [중앙 서버]
 //
 // 필수 환경변수:
 //   CUSTOMER_ID        : 고객사 식별자 (예: kt, naver)
-//   SERVER_NAME        : 서버명 (예: kt-prod-web-01)
+//   SERVER_NAME        : 서버명 (예: kt-prod-db-01)
 //   CSP                : 클라우드 종류 (aws, kt, naver, nhn)
 //   REGION             : 리전 (예: ap-northeast-2, kc1)
 //   ENVIRONMENT        : 환경 (prod, staging, test)
-//   REMOTE_WRITE_URL   : 중앙 서버 주소 (예: http://1.2.3.4:8880/api/v1/write)
+//   RELAY_URL          : 릴레이 내부 주소 (예: http://10.0.1.5:9999/api/v1/metrics/write)
 
-// --- OS 메트릭 수집 (node_exporter 내장) ---
-prometheus.exporter.unix "node" {
-  // CPU, 메모리, 부하, 파일시스템, 네트워크, 디스크 I/O, 시스템 정보 수집
-  set_collectors = [
+// --- Windows OS 메트릭 수집 ---
+prometheus.exporter.windows "node" {
+  enabled_collectors = [
     "cpu",
-    "meminfo",
-    "loadavg",
-    "filesystem",
-    "netdev",
-    "diskstats",
-    "uname",
+    "memory",
+    "logical_disk",
+    "net",
+    "os",
+    "system",
     "time",
   ]
-
-  filesystem {
-    // overlay 제외 해제 (Docker 컨테이너 테스트용; 실서버에선 영향 없음)
-    fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
-  }
 }
 
 // --- 15초 간격 스크래핑 ---
 prometheus.scrape "node" {
-  targets         = prometheus.exporter.unix.node.targets
+  targets         = prometheus.exporter.windows.node.targets
   forward_to      = [prometheus.relabel.add_labels.receiver]
   scrape_interval = "15s"
   scrape_timeout  = "10s"
@@ -42,7 +37,7 @@ prometheus.scrape "node" {
 
 // --- 고객/서버/CSP 라벨 추가 ---
 prometheus.relabel "add_labels" {
-  forward_to = [prometheus.remote_write.central.receiver]
+  forward_to = [prometheus.remote_write.relay.receiver]
 
   rule {
     action       = "replace"
@@ -73,14 +68,19 @@ prometheus.relabel "add_labels" {
     target_label = "environment"
     replacement  = env("ENVIRONMENT")
   }
+
+  rule {
+    action       = "replace"
+    target_label = "os"
+    replacement  = "windows"
+  }
 }
 
-// --- 중앙 서버로 직접 remote_write push ---
-prometheus.remote_write "central" {
+// --- 내부 릴레이로 push (인터넷 불필요) ---
+prometheus.remote_write "relay" {
   endpoint {
-    url = env("REMOTE_WRITE_URL")
+    url = env("RELAY_URL")
 
-    // 재전송 설정: 일시적 네트워크 오류 대응
     queue_config {
       capacity             = 2500
       max_shards           = 4
