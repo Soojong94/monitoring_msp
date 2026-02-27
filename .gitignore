@@ -38,3 +38,9 @@ logs/
 # 빌드
 dist/
 build/
+
+# WIP (APM/3-signal 작업 보류)
+_wip-apm/
+
+# Claude Code
+.claude/
