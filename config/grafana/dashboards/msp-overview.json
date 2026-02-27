@@ -230,7 +230,7 @@
           "legendFormat": "평균 메모리 (%)",
           "instant": true,
           "format": "table"
-        },
+        }
       ],
       "transformations": [{ "id": "merge", "options": {} }],
       "fieldConfig": {
