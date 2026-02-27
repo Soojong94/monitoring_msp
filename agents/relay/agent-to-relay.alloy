@@ -26,6 +26,11 @@ prometheus.exporter.unix "node" {
     "uname",
     "time",
   ]
+
+  filesystem {
+    // overlay 제외 해제 (Docker 컨테이너 테스트용; 실서버에선 영향 없음)
+    fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+  }
 }
 
 // --- 15초 간격 스크래핑 ---

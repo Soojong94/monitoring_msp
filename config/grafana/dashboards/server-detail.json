@@ -74,7 +74,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "dtdurations", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "targets": [{ "expr": "node_uptime_seconds{customer_id=\"$customer\", server_name=\"$server\"}", "refId": "A" }]
+      "targets": [{ "expr": "time() - node_boot_time_seconds{customer_id=\"$customer\", server_name=\"$server\"}", "refId": "A" }]
     },
     {
       "id": 2,
