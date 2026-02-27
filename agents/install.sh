@@ -89,25 +89,25 @@ validate_args() {
 
   case "$MODE" in
     direct)
-      [[ -z "$CUSTOMER_ID" ]]    && echo "[ERROR] --customer-id 필요" && exit 1
-      [[ -z "$SERVER_NAME" ]]    && echo "[ERROR] --server-name 필요" && exit 1
-      [[ -z "$CSP" ]]            && echo "[ERROR] --csp 필요" && exit 1
-      [[ -z "$REGION" ]]         && echo "[ERROR] --region 필요" && exit 1
-      [[ -z "$REMOTE_WRITE_URL" ]] && echo "[ERROR] --remote-write-url 필요" && exit 1
+      if [[ -z "$CUSTOMER_ID" ]];    then echo "[ERROR] --customer-id 필요";    exit 1; fi
+      if [[ -z "$SERVER_NAME" ]];    then echo "[ERROR] --server-name 필요";    exit 1; fi
+      if [[ -z "$CSP" ]];            then echo "[ERROR] --csp 필요";            exit 1; fi
+      if [[ -z "$REGION" ]];         then echo "[ERROR] --region 필요";         exit 1; fi
+      if [[ -z "$REMOTE_WRITE_URL" ]]; then echo "[ERROR] --remote-write-url 필요"; exit 1; fi
       ;;
     relay-server)
-      [[ -z "$CUSTOMER_ID" ]]    && echo "[ERROR] --customer-id 필요" && exit 1
-      [[ -z "$SERVER_NAME" ]]    && echo "[ERROR] --server-name 필요" && exit 1
-      [[ -z "$CSP" ]]            && echo "[ERROR] --csp 필요" && exit 1
-      [[ -z "$REGION" ]]         && echo "[ERROR] --region 필요" && exit 1
-      [[ -z "$REMOTE_WRITE_URL" ]] && echo "[ERROR] --remote-write-url 필요" && exit 1
+      if [[ -z "$CUSTOMER_ID" ]];    then echo "[ERROR] --customer-id 필요";    exit 1; fi
+      if [[ -z "$SERVER_NAME" ]];    then echo "[ERROR] --server-name 필요";    exit 1; fi
+      if [[ -z "$CSP" ]];            then echo "[ERROR] --csp 필요";            exit 1; fi
+      if [[ -z "$REGION" ]];         then echo "[ERROR] --region 필요";         exit 1; fi
+      if [[ -z "$REMOTE_WRITE_URL" ]]; then echo "[ERROR] --remote-write-url 필요"; exit 1; fi
       ;;
     relay-agent)
-      [[ -z "$CUSTOMER_ID" ]]    && echo "[ERROR] --customer-id 필요" && exit 1
-      [[ -z "$SERVER_NAME" ]]    && echo "[ERROR] --server-name 필요" && exit 1
-      [[ -z "$CSP" ]]            && echo "[ERROR] --csp 필요" && exit 1
-      [[ -z "$REGION" ]]         && echo "[ERROR] --region 필요" && exit 1
-      [[ -z "$RELAY_URL" ]]      && echo "[ERROR] --relay-url 필요" && exit 1
+      if [[ -z "$CUSTOMER_ID" ]];    then echo "[ERROR] --customer-id 필요";    exit 1; fi
+      if [[ -z "$SERVER_NAME" ]];    then echo "[ERROR] --server-name 필요";    exit 1; fi
+      if [[ -z "$CSP" ]];            then echo "[ERROR] --csp 필요";            exit 1; fi
+      if [[ -z "$REGION" ]];         then echo "[ERROR] --region 필요";         exit 1; fi
+      if [[ -z "$RELAY_URL" ]];      then echo "[ERROR] --relay-url 필요";      exit 1; fi
       ;;
     *)
       echo "[ERROR] 알 수 없는 모드: $MODE (direct | relay-server | relay-agent)"
