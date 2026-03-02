@@ -1,0 +1,99 @@
+# ============================================
+# MSP Monitoring - VMAlert 알림 규칙
+# ============================================
+# Grafana Alloy 에이전트가 보내는 node_exporter 메트릭 기반.
+# 모든 규칙은 customer_id, server_name 라벨로 구분.
+
+groups:
+  - name: host.rules
+    interval: 60s
+    rules:
+
+      # --------------------------------------------------
+      # 서버 다운: 5분간 메트릭 미수신
+      # absent_over_time 은 시리즈가 사라지면 즉시 발동.
+      # for: 0m — 이미 5분 윈도우가 조건에 포함되어 있음.
+      # --------------------------------------------------
+      - alert: ServerDown
+        expr: absent_over_time(node_uname_info{customer_id!=""}[5m]) == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서버 다운: {{ $labels.server_name }} ({{ $labels.customer_id }})"
+          description: >
+            {{ $labels.server_name }} (고객사: {{ $labels.customer_id }})
+            에서 5분 이상 메트릭이 수신되지 않습니다.
+            에이전트 상태 및 네트워크 연결을 확인하세요.
+
+      # --------------------------------------------------
+      # CPU 과부하: 평균 사용률 80% 초과 5분 지속
+      # idle 모드의 역수 = 사용률. 모든 CPU 코어 평균.
+      # --------------------------------------------------
+      - alert: HighCPUUsage
+        expr: |
+          (
+            1 - avg by (customer_id, server_name, csp, region, environment) (
+              rate(node_cpu_seconds_total{mode="idle", customer_id!=""}[5m])
+            )
+          ) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 과부하: {{ $labels.server_name }} {{ $value | humanize }}%"
+          description: >
+            {{ $labels.server_name }} (고객사: {{ $labels.customer_id }},
+            {{ $labels.csp }}/{{ $labels.region }}, {{ $labels.environment }})
+            CPU 사용률이 {{ $value | humanize }}% 입니다 (기준: 80%).
+
+      # --------------------------------------------------
+      # 메모리 과부하: 사용률 85% 초과 5분 지속
+      # MemAvailable 은 실제 사용 가능한 메모리(캐시 포함).
+      # --------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 - (
+              node_memory_MemAvailable_bytes{customer_id!=""}
+              / node_memory_MemTotal_bytes{customer_id!=""}
+            )
+          ) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "메모리 과부하: {{ $labels.server_name }} {{ $value | humanize }}%"
+          description: >
+            {{ $labels.server_name }} (고객사: {{ $labels.customer_id }},
+            {{ $labels.csp }}/{{ $labels.region }}, {{ $labels.environment }})
+            메모리 사용률이 {{ $value | humanize }}% 입니다 (기준: 85%).
+
+      # --------------------------------------------------
+      # 디스크 부족: 마운트포인트별 사용률 90% 초과 5분 지속
+      # tmpfs/overlay 등 가상 파일시스템 제외.
+      # 마운트포인트별로 개별 알림 발송.
+      # --------------------------------------------------
+      - alert: HighDiskUsage
+        expr: |
+          (
+            1 - (
+              node_filesystem_avail_bytes{
+                customer_id!="",
+                fstype!~"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\..*"
+              }
+              / node_filesystem_size_bytes{
+                customer_id!="",
+                fstype!~"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\..*"
+              }
+            )
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 부족: {{ $labels.server_name }} {{ $labels.mountpoint }} {{ $value | humanize }}%"
+          description: >
+            {{ $labels.server_name }} {{ $labels.mountpoint }} (고객사: {{ $labels.customer_id }},
+            {{ $labels.csp }}/{{ $labels.region }}, {{ $labels.environment }})
+            디스크 사용률이 {{ $value | humanize }}% 입니다 (기준: 90%).

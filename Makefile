@@ -1,4 +1,4 @@
-.PHONY: help build up local down restart logs ps health setup clean
+.PHONY: help build up local down restart logs ps health setup clean alertmanager-config
 
 LOCAL_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local
 
@@ -34,3 +34,8 @@ health: ## 헬스 체크
 
 clean: ## 컨테이너 + 볼륨 정리
 	$(LOCAL_COMPOSE) down -v 2>/dev/null; docker compose down -v 2>/dev/null; true
+
+alertmanager-config: ## Alertmanager 설정 파일 생성 (.env 기반, docker compose up 전 실행)
+	@test -f .env || (echo "[ERROR] .env 파일 없음. cp .env.example .env 후 SMTP 설정 필요."; exit 1)
+	@. ./.env && envsubst < config/alertmanager/alertmanager.yml.tmpl > config/alertmanager/alertmanager.yml
+	@echo "[OK] config/alertmanager/alertmanager.yml 생성 완료"

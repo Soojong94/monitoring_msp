@@ -6,6 +6,8 @@
 #
 # 서비스 구성:
 #   VictoriaMetrics → 시계열 저장소 (remote_write 수신)
+#   VMAlert         → 알림 규칙 평가
+#   Alertmanager    → 알림 라우팅 (SMTP 이메일)
 #   Grafana         → 대시보드 시각화
 #   Nginx           → 리버스 프록시 + Basic Auth
 
@@ -37,6 +39,61 @@ services:
       start_period: 10s
 
   # -----------------------------------------------
+  # Alertmanager: 알림 라우팅 (SMTP 이메일 발송)
+  # -----------------------------------------------
+  # make alertmanager-config 실행 후 config 파일 생성 필요
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: msp-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager-data'
+      - '--web.listen-address=:9093'
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager-data
+    networks:
+      - msp-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -----------------------------------------------
+  # VMAlert: 알림 규칙 평가 엔진
+  # -----------------------------------------------
+  # VictoriaMetrics 메트릭을 쿼리해 임계값 초과 시 Alertmanager 로 발송
+  vmalert:
+    image: victoriametrics/vmalert:v1.106.1
+    container_name: msp-vmalert
+    restart: unless-stopped
+    command:
+      - '-datasource.url=http://victoriametrics:8428'
+      - '-remoteWrite.url=http://victoriametrics:8428/api/v1/write'
+      - '-notifier.url=http://alertmanager:9093'
+      - '-rule=/etc/vmalert/rules/*.yml'
+      - '-evaluationInterval=60s'
+      - '-httpListenAddr=:8180'
+    volumes:
+      - ./config/vmalert/rules:/etc/vmalert/rules:ro
+    networks:
+      - msp-net
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+      alertmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8180/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -----------------------------------------------
   # Grafana: 대시보드 시각화
   # -----------------------------------------------
   grafana:
@@ -56,6 +113,8 @@ services:
       - msp-net
     depends_on:
       victoriametrics:
+        condition: service_healthy
+      vmalert:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
@@ -101,4 +160,6 @@ volumes:
   vm-data:
     driver: local
   grafana-data:
+    driver: local
+  alertmanager-data:
     driver: local

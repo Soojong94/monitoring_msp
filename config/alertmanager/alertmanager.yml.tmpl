@@ -1,0 +1,41 @@
+global:
+  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+  smtp_from: '${SMTP_FROM}'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+route:
+  group_by: ['customer_id', 'alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'email-ops'
+  routes:
+    - match:
+        severity: critical
+      group_wait: 10s
+      repeat_interval: 1h
+      receiver: 'email-ops'
+    - match:
+        severity: warning
+      group_wait: 60s
+      repeat_interval: 6h
+      receiver: 'email-ops'
+
+receivers:
+  - name: 'email-ops'
+    email_configs:
+      - to: '${ALERT_EMAIL_TO}'
+        send_resolved: true
+        headers:
+          Subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - {{ .GroupLabels.customer_id }}'
+
+inhibit_rules:
+  # 서버 다운 시 CPU/메모리/디스크 알림 억제
+  # (서버 다운으로 인해 발생하는 파생 알림 방지)
+  - source_match:
+      alertname: 'ServerDown'
+    target_match_re:
+      alertname: 'HighCPUUsage|HighMemoryUsage|HighDiskUsage'
+    equal: ['customer_id', 'server_name']
