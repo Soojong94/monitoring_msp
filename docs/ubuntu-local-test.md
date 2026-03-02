@@ -2,23 +2,25 @@
 
 실제 클라우드 배포 전 Windows에서 Ubuntu 컨테이너 3개로 전체 구조를 검증하는 방법.
 
-> 실제 클라우드(AWS/KT 등)에서는 Ubuntu OS에 직접 명령어를 실행하면 되므로 이 문서의 Docker 컨테이너 설정은 불필요하다.
+> 실제 클라우드 서버에서는 이 문서의 Docker 컨테이너 설정은 불필요하다.
+> 클라우드 서버에서 바로 install.sh 또는 install.ps1 를 실행하면 된다.
 
 ## 구조
 
 ```
-[ubuntu-agent]  relay-agent 모드 (Alloy)
+[ubuntu-agent]   relay-agent 모드 (Alloy)
      │ push :9999
-[ubuntu-relay]  relay-server 모드 (Alloy)
+[ubuntu-relay]   relay-server 모드 (Alloy)
      │ push :8880
-[ubuntu-central] 중앙 서버 (DinD → VictoriaMetrics + Grafana + Nginx)
+[ubuntu-central] 중앙 서버
+     └── Docker-in-Docker: VictoriaMetrics + VMAlert + Alertmanager + Grafana + Nginx
 ```
 
 ## 사전 요구사항
 
-- Docker Desktop for Windows
+- Docker Desktop for Windows (실행 중)
 - `ubuntu-systemd:22.04` 이미지 빌드 완료 (아래 참고)
-- 레포 최신 상태
+- 레포 최신 상태 (`git pull`)
 
 ### ubuntu-systemd 이미지 빌드 (최초 1회)
 
@@ -83,12 +85,28 @@ echo '{"storage-driver": "vfs"}' > /etc/docker/daemon.json
 systemctl start docker
 docker ps  # 빈 테이블이면 정상
 
-# 레포 클론 + 중앙 스택 실행
+# 레포 클론 + 환경설정
 git clone https://github.com/Soojong94/monitoring_msp.git
 cd monitoring_msp
 cp .env.example .env
+
+# Alertmanager 설정 생성 (SMTP는 더미값으로 동작)
+apt-get install -y gettext-base   # envsubst 설치
+make alertmanager-config
+
+# 중앙 스택 실행 (5개 서비스)
 docker compose up -d
-docker compose ps  # 3개 healthy 확인
+docker compose ps   # 5개 모두 healthy 확인
+```
+
+기대 결과:
+```
+NAME                  STATUS
+msp-victoriametrics   Up (healthy)
+msp-alertmanager      Up (healthy)
+msp-vmalert           Up (healthy)
+msp-grafana           Up (healthy)
+msp-nginx             Up (healthy)
 ```
 
 ## Step 4: ubuntu-relay — relay-server 설치
@@ -103,7 +121,7 @@ git clone https://github.com/Soojong94/monitoring_msp.git
 cd monitoring_msp
 chmod +x agents/install.sh
 
-./agents/install.sh \
+sudo ./agents/install.sh \
   --mode=relay-server \
   --customer-id=test \
   --server-name=relay-01 \
@@ -127,7 +145,7 @@ git clone https://github.com/Soojong94/monitoring_msp.git
 cd monitoring_msp
 chmod +x agents/install.sh
 
-./agents/install.sh \
+sudo ./agents/install.sh \
   --mode=relay-agent \
   --customer-id=test \
   --server-name=agent-01 \
@@ -137,17 +155,30 @@ chmod +x agents/install.sh
   --relay-url=http://relay:9999/api/v1/metrics/write
 ```
 
+`[OK] Alloy 실행 중` 확인.
+
 ## Step 6: 검증 (2~3분 후)
 
 ubuntu-central 안에서:
 
 ```bash
+cd monitoring_msp
+
+# 수신된 서버 목록 확인
 docker exec msp-victoriametrics wget -q -O - \
   "http://127.0.0.1:8428/api/v1/label/server_name/values"
 # 결과: {"status":"success","data":["agent-01","relay-01"]}
+
+# VMAlert 알림 규칙 상태 확인
+docker exec msp-vmalert wget -qO- "http://127.0.0.1:8180/api/v1/rules" | \
+  grep -o '"name":"[^"]*"\|"state":"[^"]*"'
 ```
 
-Grafana: `http://localhost:8880` → Nginx Basic Auth `admin/changeme` → Grafana 로그인 `admin/changeme`
+Grafana 대시보드:
+- `http://localhost:8880` 접속
+- Nginx Basic Auth: `admin` / `changeme`
+- Grafana 로그인: `admin` / `changeme`
+- MSP 전체 고객 현황 → `test` 고객, `relay-01` + `agent-01` 서버 확인
 
 ## 종료
 
@@ -162,15 +193,14 @@ docker network rm msp-ubuntu-net
 
 ---
 
-## 트러블슈팅 기록
+## 트러블슈팅
 
 | 문제 | 원인 | 해결 |
-|---|---|---|
-| `install.sh` 아무 출력 없이 종료 | `set -euo pipefail` + `[[ -z "$VAR" ]] && ...` 조합: 변수가 설정된 경우 false(1) 반환 → `set -e`가 스크립트 종료 | `&&` 체인을 `if/fi` 블록으로 변경 |
-| git clone SSL 오류 | 컨테이너에 CA 인증서 없음 | `apt-get install -y ca-certificates` |
+|------|------|------|
+| `make alertmanager-config` 실패 | `envsubst` 없음 | `apt-get install -y gettext-base` |
+| `docker compose up` 시 alertmanager unhealthy | `alertmanager.yml` 없음 | `make alertmanager-config` 먼저 실행 |
 | DinD overlay 마운트 오류 | overlay-on-overlay 불가 | `daemon.json`에 `vfs` 드라이버 설정 |
-| Grafana 로그인 루프 | Nginx가 `Authorization` 헤더를 Grafana로 전달 → Grafana 세션 혼란 | `proxy_set_header Authorization "";` 추가, `/api/` Basic Auth 제거 |
-| `msp-overview.json` 파싱 오류 | JSON trailing comma | 해당 라인 수정 |
-| Uptime "No data" | 대시보드가 `node_uptime_seconds` 쿼리 (비표준 메트릭), relay-server.alloy에 `time` 컬렉터 누락 | 쿼리를 `time() - node_boot_time_seconds`로 변경, `time` 컬렉터 추가 |
-| 디스크 사용률 "No data" | Docker 컨테이너 루트 파일시스템이 overlay 타입이며 기본 필터에서 제외됨 | `prometheus.exporter.unix` `filesystem` 블록에서 `fs_types_exclude` 패턴에서 `overlay` 제거 |
-| CPU 사용률 0% | 컨테이너 자체가 idle 상태 (정상) — alloy 프로세스만 실행 중이며 실제 CPU 점유율이 ~0.5% 미만 | 정상 동작. 실제 서버에서는 workload에 따라 정상 표시됨 |
+| git clone SSL 오류 | CA 인증서 없음 | `apt-get install -y ca-certificates` |
+| Grafana 로그인 루프 | Nginx가 Authorization 헤더 전달 | nginx.conf에 `proxy_set_header Authorization "";` 포함됨 (이미 해결) |
+| `install.sh` 아무 출력 없이 종료 | `set -euo pipefail` 오류 | `journalctl -u alloy -n 10`으로 원인 확인 |
+| CPU 사용률 0% | 컨테이너라 idle 상태 정상 | 실제 서버에서는 workload에 따라 표시됨 |
