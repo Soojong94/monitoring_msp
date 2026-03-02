@@ -59,7 +59,7 @@
       "id": 1,
       "title": "총 고객 수",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -95,7 +95,7 @@
       "id": 2,
       "title": "총 서버 수",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -128,7 +128,7 @@
       "id": 3,
       "title": "평균 CPU 사용률",
       "type": "gauge",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -164,7 +164,7 @@
       "id": 4,
       "title": "평균 메모리 사용률",
       "type": "gauge",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -194,6 +194,42 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 200,
+      "title": "발화 중인 알림",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\", customer_id=~\"$customer\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -228,6 +264,13 @@
           "expr": "avg by (customer_id) (\n  (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100\n)",
           "refId": "C",
           "legendFormat": "평균 메모리 (%)",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "count by (customer_id)(ALERTS{alertstate=\"firing\", customer_id=~\"$customer\"})\nor\n(0 * count by (customer_id)(node_uname_info{customer_id=~\"$customer\"}))",
+          "refId": "D",
+          "legendFormat": "{{customer_id}}",
           "instant": true,
           "format": "table"
         }
@@ -292,6 +335,27 @@
             "matcher": { "id": "byName", "options": "Value #A" },
             "properties": [
               { "id": "displayName", "value": "서버 수" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value #D" },
+            "properties": [
+              { "id": "displayName", "value": "알림 수" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 1 },
+                    { "color": "red", "value": 3 }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "basic" }
+              }
             ]
           }
         ]
