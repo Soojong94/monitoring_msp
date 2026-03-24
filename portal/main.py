@@ -15,6 +15,7 @@ from routers import agent as agent_router
 from routers import system as system_router
 from routers import users as users_router
 from routers import grafana as grafana_router
+from routers import reports as reports_router
 
 
 def _migrate(db):
@@ -76,6 +77,7 @@ app.include_router(agent_router.router, prefix="/api")
 app.include_router(system_router.router, prefix="/api")
 app.include_router(users_router.router, prefix="/api")
 app.include_router(grafana_router.router, prefix="/api")
+app.include_router(reports_router.router, prefix="/api")
 
 # Frontend static files
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist")

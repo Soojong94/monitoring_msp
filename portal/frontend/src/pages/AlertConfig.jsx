@@ -3,7 +3,10 @@ import { api } from '../api.js';
 
 function CustomerAlertPanel({ config, onRefresh }) {
   const [newEmail, setNewEmail] = useState('');
-  const [thresholds, setThresholds] = useState(config.thresholds);
+  const [thresholds, setThresholds] = useState({
+    ...config.thresholds,
+    retention_days: config.thresholds.retention_days ?? 1095,
+  });
   const [saving, setSaving] = useState(false);
   const [addingEmail, setAddingEmail] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -160,6 +163,21 @@ function CustomerAlertPanel({ config, onRefresh }) {
               />
             </div>
           ))}
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">데이터 보관기간 (일)</label>
+          <input
+            type="number"
+            min={30}
+            max={3650}
+            value={thresholds.retention_days}
+            onChange={(e) =>
+              setThresholds({ ...thresholds, retention_days: parseInt(e.target.value) || 1095 })
+            }
+            disabled={role !== 'admin'}
+            className="w-32 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+          />
+          <span className="text-xs text-gray-400 ml-2">기본 1095일 (3년)</span>
         </div>
         {role === 'admin' && (
           <button

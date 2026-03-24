@@ -43,6 +43,7 @@ class ThresholdConfig(BaseModel):
     cpu: int = 90
     memory: int = 90
     disk: int = 90
+    retention_days: int = 1095
 
 
 class AlertConfigUpdate(BaseModel):

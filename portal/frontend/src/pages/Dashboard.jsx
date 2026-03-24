@@ -137,10 +137,22 @@ export default function Dashboard() {
       </div>
 
       {/* Firing alerts table */}
-      {alerts.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">발생 중인 알람</h2>
-          <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-700">
+            발생 중인 알람
+            {alerts.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-600 text-sm rounded-full font-normal">
+                {alerts.length}
+              </span>
+            )}
+          </h2>
+          <a href="/alert-history" className="text-sm text-blue-600 hover:underline">전체 이력 →</a>
+        </div>
+        <div className="bg-white rounded-xl shadow overflow-hidden">
+          {alerts.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-400 text-sm">현재 발생 중인 알람이 없습니다.</div>
+          ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs">
                 <tr>
@@ -171,9 +183,9 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -77,16 +77,16 @@ def generate_vmalert_rules(customers_thresholds: list[dict]) -> str:
     """customers_thresholds: [{ customer_id, cpu, memory, disk }]"""
     groups = []
 
-    default_cust = [
-        c for c in customers_thresholds
-        if c["cpu"] == 90 and c["memory"] == 90 and c["disk"] == 90
-    ]
     custom_cust = [
         c for c in customers_thresholds
         if not (c["cpu"] == 90 and c["memory"] == 90 and c["disk"] == 90)
     ]
+    default_cust = [
+        c for c in customers_thresholds
+        if c["cpu"] == 90 and c["memory"] == 90 and c["disk"] == 90
+    ]
 
-    # Default group
+    # Default group — only for customers explicitly registered with default thresholds
     if not customers_thresholds:
         groups.append(_make_rule_group("host-alerts-default", "", 90, 90, 90))
     elif default_cust:

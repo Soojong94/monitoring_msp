@@ -27,6 +27,7 @@ def _get_config(customer_id: str, db: Session) -> AlertConfigResponse:
             cpu=threshold.cpu if threshold else 90,
             memory=threshold.memory if threshold else 90,
             disk=threshold.disk if threshold else 90,
+            retention_days=threshold.retention_days if threshold else 1095,
         ),
     )
 
@@ -85,12 +86,14 @@ async def update_config(
             t.cpu = body.thresholds.cpu
             t.memory = body.thresholds.memory
             t.disk = body.thresholds.disk
+            t.retention_days = body.thresholds.retention_days
         else:
             t = AlertThreshold(
                 customer_id=customer_id,
                 cpu=body.thresholds.cpu,
                 memory=body.thresholds.memory,
                 disk=body.thresholds.disk,
+                retention_days=body.thresholds.retention_days,
             )
             db.add(t)
 

@@ -98,6 +98,26 @@ export const api = {
   resetGrafanaPassword: (id, password) => apiFetch(`/api/grafana/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) }),
   updateGrafanaRole: (id, role) => apiFetch(`/api/grafana/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
+  // Reports
+  downloadMonthlyReport: async (customerId, year, month) => {
+    const token = getToken();
+    const resp = await fetch(
+      `/api/reports/monthly?customer_id=${encodeURIComponent(customerId)}&year=${year}&month=${month}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Report generation failed' }));
+      throw new Error(err.detail || 'Report generation failed');
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report_${customerId}_${year}${String(month).padStart(2, '0')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
   // System
   getSystemStatus: () => apiFetch('/api/system/status'),
   restartService: (service) =>
