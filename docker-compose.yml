@@ -152,6 +152,35 @@ services:
       retries: 3
       start_period: 5s
 
+  # -----------------------------------------------
+  # MSP Portal: 관리 포털 (FastAPI + React)
+  # -----------------------------------------------
+  portal:
+    build: ./portal
+    container_name: msp-portal
+    restart: unless-stopped
+    environment:
+      - PORTAL_JWT_SECRET=${PORTAL_JWT_SECRET:-change-this-secret}
+      - PORTAL_INIT_USER=${PORTAL_INIT_USER:-admin}
+      - PORTAL_INIT_PASSWORD=${PORTAL_INIT_PASSWORD:-changeme123}
+      - VICTORIAMETRICS_URL=http://victoriametrics:8428
+      - ALERTMANAGER_URL=http://alertmanager:9093
+      - CONFIG_DIR=/monitoring_msp/config
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-alertmanager@tbit.co.kr}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/monitoring_msp/config
+      - portal-db:/app/data
+    networks:
+      - msp-net
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+
 networks:
   msp-net:
     driver: bridge
@@ -162,4 +191,6 @@ volumes:
   grafana-data:
     driver: local
   alertmanager-data:
+    driver: local
+  portal-db:
     driver: local
