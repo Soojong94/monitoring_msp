@@ -34,6 +34,11 @@ def init_db():
             db.add(user)
             db.commit()
             print(f"[portal] Created initial user: {init_user}")
+        else:
+            # Always sync password from env var on startup
+            existing.password_hash = hash_password(init_pass)
+            db.commit()
+            print(f"[portal] Synced password for user: {init_user}")
     finally:
         db.close()
 
