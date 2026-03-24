@@ -48,6 +48,16 @@ def _build_thresholds_for_vmalert(db: Session) -> list[dict]:
     ]
 
 
+@router.get("/customers")
+async def list_vm_customers(user: dict = Depends(get_current_user)):
+    """VictoriaMetrics에서 실제 데이터가 있는 customer_id 목록 반환"""
+    from services.victoriametrics import get_customers
+    try:
+        return await get_customers()
+    except Exception:
+        return []
+
+
 @router.get("/config", response_model=list[AlertConfigResponse])
 def list_configs(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     from models import CustomerEmail, AlertThreshold

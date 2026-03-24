@@ -152,16 +152,22 @@ function CustomerAlertPanel({ config, onRefresh }) {
 
 export default function AlertConfig() {
   const [configs, setConfigs] = useState([]);
+  const [vmCustomers, setVmCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newCustomerId, setNewCustomerId] = useState('');
+  const [search, setSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [adding, setAdding] = useState(false);
   const role = localStorage.getItem('role');
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await api.getAlertConfigs();
+      const [data, customers] = await Promise.all([
+        api.getAlertConfigs(),
+        api.getVmCustomers(),
+      ]);
       setConfigs(data || []);
+      setVmCustomers(customers || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -171,12 +177,17 @@ export default function AlertConfig() {
 
   useEffect(() => { load(); }, []);
 
-  const handleAddCustomer = async () => {
-    if (!newCustomerId.trim()) return;
+  const configuredIds = new Set(configs.map((c) => c.customer_id));
+  const availableCustomers = vmCustomers.filter(
+    (id) => !configuredIds.has(id) && id.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAddCustomer = async (customerId) => {
     setAdding(true);
     try {
-      await api.updateAlertConfig(newCustomerId.trim(), { thresholds: { cpu: 90, memory: 90, disk: 90 } });
-      setNewCustomerId('');
+      await api.updateAlertConfig(customerId, { thresholds: { cpu: 90, memory: 90, disk: 90 } });
+      setSearch('');
+      setShowDropdown(false);
       load();
     } catch (e) {
       alert(e.message);
@@ -193,21 +204,38 @@ export default function AlertConfig() {
       </div>
 
       {role === 'admin' && (
-        <div className="bg-white rounded-xl shadow p-4 mb-6 flex gap-3">
-          <input
-            value={newCustomerId}
-            onChange={(e) => setNewCustomerId(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddCustomer()}
-            placeholder="고객사 ID 추가 (예: kt, skt)"
-            className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={handleAddCustomer}
-            disabled={adding}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            고객사 추가
-          </button>
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+          <div className="text-sm font-medium text-gray-700 mb-2">고객사 추가</div>
+          <div className="relative">
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+              placeholder="고객사 검색 (VictoriaMetrics 등록 목록)"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {showDropdown && (
+              <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {availableCustomers.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">
+                    {vmCustomers.length === 0 ? '데이터 없음 (에이전트 미연결)' : '모든 고객사가 이미 추가됨'}
+                  </div>
+                ) : (
+                  availableCustomers.map((id) => (
+                    <button
+                      key={id}
+                      onMouseDown={() => handleAddCustomer(id)}
+                      disabled={adding}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-700"
+                    >
+                      {id}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

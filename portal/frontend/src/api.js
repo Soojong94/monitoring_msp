@@ -52,6 +52,7 @@ export const api = {
     apiFetch(`/api/servers/${customerId}/${serverName}/restore`, { method: 'POST' }),
 
   // Alert configs
+  getVmCustomers: () => apiFetch('/api/alerts/customers'),
   getAlertConfigs: () => apiFetch('/api/alerts/config'),
   getAlertConfig: (customerId) => apiFetch(`/api/alerts/config/${customerId}`),
   updateAlertConfig: (customerId, data) =>
