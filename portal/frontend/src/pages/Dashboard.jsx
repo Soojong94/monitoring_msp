@@ -120,14 +120,6 @@ export default function Dashboard() {
                   <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-500">
                     <span>🟢 {online} 온라인</span>
                     {offline > 0 && <span className="text-red-500">🔴 {offline} 오프라인</span>}
-                    <a
-                      href={`https://grafana.tbit.co.kr?orgId=1&var-customer_id=${c.customer_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-auto text-blue-600 hover:underline"
-                    >
-                      Grafana →
-                    </a>
                   </div>
                 </div>
               );

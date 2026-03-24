@@ -10,6 +10,7 @@ const navItems = [
   { to: '/system', label: '시스템', icon: '⚙️' },
   { to: '/users', label: '사용자 관리', icon: '👥', adminOnly: true },
   { to: '/grafana-users', label: 'Grafana 계정', icon: '📈', adminOnly: true },
+  { to: null, href: 'https://grafana.tbit.co.kr', label: 'Grafana', icon: '🔗', external: true },
 ];
 
 export default function Layout() {
@@ -32,22 +33,33 @@ export default function Layout() {
           <div className="text-xs text-gray-400 mt-1">{localStorage.getItem('username')} · {role}</div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.filter(item => !item.adminOnly || role === 'admin').map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800'
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          {navItems.filter(item => !item.adminOnly || role === 'admin').map((item) =>
+            item.external ? (
+              <a
+                key={item.href}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ) : (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'
+                  }`
+                }
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </NavLink>
+            )
+          )}
         </nav>
         <div className="p-3 border-t border-gray-700">
           <button
