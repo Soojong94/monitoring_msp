@@ -38,6 +38,7 @@ class AlertThreshold(Base):
     cpu = Column(Integer, default=90)
     memory = Column(Integer, default=90)
     disk = Column(Integer, default=90)
+    retention_days = Column(Integer, default=1095)  # 3년 기본
     updated_at = Column(Text, default=_now)
 
 
@@ -65,6 +66,7 @@ class AlertHistory(Base):
     __tablename__ = "alert_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    fingerprint = Column(Text, index=True)
     customer_id = Column(Text)
     server_name = Column(Text)
     alert_name = Column(Text)

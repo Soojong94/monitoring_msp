@@ -17,10 +17,25 @@ from routers import users as users_router
 from routers import grafana as grafana_router
 
 
+def _migrate(db):
+    """기존 테이블에 신규 컬럼 추가 (없을 때만)"""
+    migrations = [
+        "ALTER TABLE alert_thresholds ADD COLUMN retention_days INTEGER DEFAULT 1095",
+        "ALTER TABLE alert_history ADD COLUMN fingerprint TEXT",
+    ]
+    for sql in migrations:
+        try:
+            db.execute(text(sql))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
+    _migrate(db)
     try:
         # Create initial admin user if not exists
         init_user = os.getenv("PORTAL_INIT_USER", "admin")

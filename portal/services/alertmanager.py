@@ -42,6 +42,18 @@ def generate_alertmanager_config(customers: list[dict]) -> str:
         "receivers": [{"name": "blackhole"}],
     }
 
+    # 모든 알람을 포털 webhook으로 기록 (continue: true로 이후 라우트도 처리)
+    config["route"]["routes"].insert(0, {
+        "receiver": "portal-webhook",
+        "continue": True,
+    })
+    config["receivers"].append({
+        "name": "portal-webhook",
+        "webhook_configs": [
+            {"url": "http://portal:8000/api/alerts/webhook", "send_resolved": True}
+        ],
+    })
+
     for customer in customers:
         active_emails = [e for e in customer.get("emails", []) if e]
         if not active_emails:

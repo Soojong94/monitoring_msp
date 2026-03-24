@@ -72,6 +72,10 @@ export const api = {
   deleteAlertConfig: (customerId) =>
     apiFetch(`/api/alerts/config/${customerId}`, { method: 'DELETE' }),
   getFiringAlerts: () => apiFetch('/api/alerts/firing'),
+  getAlertHistory: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return apiFetch(`/api/alerts/history${qs ? '?' + qs : ''}`);
+  },
 
   // Agent commands
   generateCommand: (data) =>

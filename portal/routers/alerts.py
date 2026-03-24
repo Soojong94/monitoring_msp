@@ -3,8 +3,9 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from typing import Optional
 from database import get_db
-from models import CustomerEmail, AlertThreshold
+from models import CustomerEmail, AlertThreshold, AlertHistory
 from schemas import AlertConfigUpdate, AlertConfigResponse, EmailEntry, ThresholdConfig, AddEmailRequest
 from auth import get_current_user, require_admin
 from services import alertmanager as am_svc
@@ -222,3 +223,68 @@ async def get_firing_alerts(user: dict = Depends(get_current_user)):
             return result
     except Exception as e:
         return []
+
+
+@router.post("/webhook")
+async def alert_webhook(payload: dict, db: Session = Depends(get_db)):
+    """alertmanager webhook 수신 → alert_history 저장"""
+    for alert in payload.get("alerts", []):
+        labels = alert.get("labels", {})
+        annotations = alert.get("annotations", {})
+        fingerprint = alert.get("fingerprint", "")
+        status = alert.get("status", "firing")
+        starts_at = alert.get("startsAt", "")
+        ends_at = alert.get("endsAt", "")
+
+        if status == "firing":
+            existing = db.query(AlertHistory).filter(
+                AlertHistory.fingerprint == fingerprint,
+                AlertHistory.resolved_at == None,
+            ).first()
+            if not existing:
+                db.add(AlertHistory(
+                    fingerprint=fingerprint,
+                    customer_id=labels.get("customer_id", ""),
+                    server_name=labels.get("server_name", ""),
+                    alert_name=labels.get("alertname", ""),
+                    status="firing",
+                    severity=labels.get("severity", ""),
+                    message=annotations.get("description", ""),
+                    started_at=starts_at,
+                ))
+        elif status == "resolved":
+            existing = db.query(AlertHistory).filter(
+                AlertHistory.fingerprint == fingerprint,
+                AlertHistory.resolved_at == None,
+            ).first()
+            if existing:
+                existing.status = "resolved"
+                existing.resolved_at = ends_at if not ends_at.startswith("0001") else None
+
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/history")
+def get_alert_history(
+    customer_id: Optional[str] = None,
+    server_name: Optional[str] = None,
+    status: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    q = db.query(AlertHistory)
+    if customer_id:
+        q = q.filter(AlertHistory.customer_id == customer_id)
+    if server_name:
+        q = q.filter(AlertHistory.server_name == server_name)
+    if status:
+        q = q.filter(AlertHistory.status == status)
+    if from_date:
+        q = q.filter(AlertHistory.started_at >= from_date)
+    if to_date:
+        q = q.filter(AlertHistory.started_at <= to_date + "T23:59:59Z")
+    return q.order_by(AlertHistory.id.desc()).limit(limit).all()
