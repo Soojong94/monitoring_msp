@@ -60,6 +60,26 @@ class AddEmailRequest(BaseModel):
     email: str
 
 
+# Users
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "viewer"
+
+
+class UserUpdate(BaseModel):
+    role: Optional[str] = None
+    password: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
+
+
 # Agent command
 class AgentCommandRequest(BaseModel):
     customer_id: str

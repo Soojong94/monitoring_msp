@@ -80,6 +80,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Users
+  getUsers: () => apiFetch('/api/users'),
+  createUser: (data) => apiFetch('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id, data) => apiFetch(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUser: (id) => apiFetch(`/api/users/${id}`, { method: 'DELETE' }),
+  changeMyPassword: (password) => apiFetch('/api/users/me/password', { method: 'PUT', body: JSON.stringify({ password }) }),
+
   // System
   getSystemStatus: () => apiFetch('/api/system/status'),
   restartService: (service) =>

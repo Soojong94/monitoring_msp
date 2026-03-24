@@ -16,6 +16,7 @@ export default function Login() {
       const data = await api.login(form.username, form.password);
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('role', data.role);
+      localStorage.setItem('username', form.username);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || '로그인 실패');

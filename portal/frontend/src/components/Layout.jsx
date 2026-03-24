@@ -6,6 +6,7 @@ const navItems = [
   { to: '/servers', label: '서버 관리', icon: '🖥️' },
   { to: '/alerts', label: '알람 설정', icon: '🔔' },
   { to: '/system', label: '시스템', icon: '⚙️' },
+  { to: '/users', label: '사용자 관리', icon: '👥', adminOnly: true },
 ];
 
 export default function Layout() {
@@ -25,10 +26,10 @@ export default function Layout() {
       <aside className="w-56 bg-gray-900 text-white flex flex-col">
         <div className="p-4 border-b border-gray-700">
           <div className="text-lg font-bold text-blue-400">MSP Portal</div>
-          <div className="text-xs text-gray-400 mt-1">{role}</div>
+          <div className="text-xs text-gray-400 mt-1">{localStorage.getItem('username')} · {role}</div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map((item) => (
+          {navItems.filter(item => !item.adminOnly || role === 'admin').map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -6,6 +6,7 @@ import Servers from './pages/Servers.jsx';
 import AlertConfig from './pages/AlertConfig.jsx';
 import System from './pages/System.jsx';
 import Layout from './components/Layout.jsx';
+import Users from './pages/Users.jsx';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="servers" element={<Servers />} />
           <Route path="alerts" element={<AlertConfig />} />
           <Route path="system" element={<System />} />
+          <Route path="users" element={<Users />} />
         </Route>
       </Routes>
     </BrowserRouter>
