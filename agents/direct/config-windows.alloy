@@ -1,29 +1,17 @@
 // ============================================
 // MSP Monitoring - Direct Agent Config (Windows)
 // ============================================
-// Outbound 인터넷 접근이 가능한 Windows 서버용.
-// 수집한 메트릭을 중앙 서버로 직접 push.
+// Collects Windows metrics and remaps to node_exporter-compatible
+// names so Linux/Windows share the same Grafana dashboard.
 //
-// 필수 환경변수:
-//   CUSTOMER_ID        : 고객사 식별자 (예: kt, naver)
-//   SERVER_NAME        : 서버명 (예: kt-prod-web-01)
-//   CSP                : 클라우드 종류 (aws, kt, naver, nhn)
-//   REGION             : 리전 (예: ap-northeast-2, kc1)
-//   ENVIRONMENT        : 환경 (prod, staging, test)
-//   REMOTE_WRITE_URL   : 중앙 서버 주소 (예: http://1.2.3.4:8880/api/v1/write)
-//
-// 수집 메트릭 (windows_* prefix):
-//   windows_cpu_time_total           → CPU 사용률
-//   windows_memory_*                 → 메모리
-//   windows_logical_disk_*           → 디스크 용량
-//   windows_net_*                    → 네트워크 트래픽
-//   windows_os_*                     → OS 정보 (Uptime 등)
-//   windows_system_*                 → 시스템 정보
+// Required env vars:
+//   CUSTOMER_ID, SERVER_NAME, CSP, REGION, ENVIRONMENT, REMOTE_WRITE_URL
 
-// --- Windows OS 메트릭 수집 ---
+// --- Windows OS metric collection ---
 prometheus.exporter.windows "node" {
   enabled_collectors = [
     "cpu",
+    "cs",           // physical memory total
     "memory",
     "logical_disk",
     "net",
@@ -33,15 +21,94 @@ prometheus.exporter.windows "node" {
   ]
 }
 
-// --- 15초 간격 스크래핑 ---
+// --- Scrape every 15s ---
 prometheus.scrape "node" {
   targets         = prometheus.exporter.windows.node.targets
-  forward_to      = [prometheus.relabel.add_labels.receiver]
+  forward_to      = [prometheus.relabel.win_compat.receiver]
   scrape_interval = "15s"
   scrape_timeout  = "10s"
 }
 
-// --- 고객/서버/CSP 라벨 추가 ---
+// --- Remap Windows metrics → node_exporter-compatible names ---
+prometheus.relabel "win_compat" {
+  forward_to = [prometheus.relabel.add_labels.receiver]
+
+  // CPU: windows_cpu_time_total -> node_cpu_seconds_total
+  // mode labels (idle, user, system, ...) are identical
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_cpu_time_total"
+    target_label  = "__name__"
+    replacement   = "node_cpu_seconds_total"
+  }
+
+  // Memory available
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_memory_available_bytes"
+    target_label  = "__name__"
+    replacement   = "node_memory_MemAvailable_bytes"
+  }
+
+  // Memory total (cs collector: windows_cs_physical_memory_bytes)
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_cs_physical_memory_bytes"
+    target_label  = "__name__"
+    replacement   = "node_memory_MemTotal_bytes"
+  }
+
+  // Disk free bytes
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_logical_disk_free_bytes"
+    target_label  = "__name__"
+    replacement   = "node_filesystem_avail_bytes"
+  }
+
+  // Disk size bytes
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_logical_disk_size_bytes"
+    target_label  = "__name__"
+    replacement   = "node_filesystem_size_bytes"
+  }
+
+  // Rename 'volume' label (C:, D:) → 'mountpoint' for disk metrics
+  rule {
+    source_labels = ["volume"]
+    regex         = "(.+)"
+    target_label  = "mountpoint"
+    replacement   = "$1"
+  }
+
+  // Add fstype=NTFS so dashboard fstype filters pass through
+  rule {
+    source_labels = ["__name__"]
+    regex         = "node_filesystem_(avail|size)_bytes"
+    target_label  = "fstype"
+    replacement   = "NTFS"
+  }
+
+  // OS info: windows_os_info → node_uname_info
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_os_info"
+    target_label  = "__name__"
+    replacement   = "node_uname_info"
+  }
+
+  // Uptime: windows_system_system_up_time → node_time_seconds
+  // (dashboard shows uptime via this metric)
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_system_system_up_time"
+    target_label  = "__name__"
+    replacement   = "windows_uptime_seconds"
+  }
+}
+
+// --- Add customer/server labels ---
 prometheus.relabel "add_labels" {
   forward_to = [prometheus.remote_write.central.receiver]
 
@@ -82,7 +149,7 @@ prometheus.relabel "add_labels" {
   }
 }
 
-// --- 중앙 서버로 직접 remote_write push ---
+// --- Remote write to central server ---
 prometheus.remote_write "central" {
   endpoint {
     url = env("REMOTE_WRITE_URL")
