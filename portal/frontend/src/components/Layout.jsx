@@ -6,7 +6,7 @@ const navItems = [
   { to: '/servers', label: '서버 관리', icon: '🖥️' },
   { to: '/alerts', label: '알람 설정', icon: '🔔' },
   { to: '/alert-history', label: '알람 이력', icon: '📋' },
-  { to: '/reports', label: '월간 보고서', icon: '📊' },
+  { to: '/reports', label: '보고서', icon: '📊' },
   { to: '/system', label: '시스템', icon: '⚙️' },
   { to: '/users', label: '사용자 관리', icon: '👥', adminOnly: true },
   { to: '/grafana-users', label: 'Grafana 계정', icon: '📈', adminOnly: true },

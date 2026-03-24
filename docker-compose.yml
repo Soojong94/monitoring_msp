@@ -28,7 +28,7 @@ services:
       - '-selfScrapeInterval=15s'
       - '-dedup.minScrapeInterval=30s'
     volumes:
-      - vm-data:/victoria-metrics-data
+      - ./data/victoria-metrics:/victoria-metrics-data
     networks:
       - msp-net
     healthcheck:
@@ -46,13 +46,14 @@ services:
     image: prom/alertmanager:v0.27.0
     container_name: msp-alertmanager
     restart: unless-stopped
+    user: "65534:65534"
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager-data'
       - '--web.listen-address=:9093'
     volumes:
       - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager-data:/alertmanager-data
+      - ./data/alertmanager:/alertmanager-data
     networks:
       - msp-net
     healthcheck:
@@ -107,8 +108,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
+    user: "472:472"
     volumes:
-      - grafana-data:/var/lib/grafana
+      - ./data/grafana:/var/lib/grafana
     networks:
       - msp-net
     depends_on:
@@ -181,7 +183,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/monitoring_msp/config
-      - portal-db:/app/data
+      - ./data/portal:/app/data
     networks:
       - msp-net
     ports:
@@ -194,12 +196,9 @@ networks:
   msp-net:
     driver: bridge
 
-volumes:
-  vm-data:
-    driver: local
-  grafana-data:
-    driver: local
-  alertmanager-data:
-    driver: local
-  portal-db:
-    driver: local
+# Named volumes replaced with bind mounts under ./data/
+# Structure:
+#   ./data/victoria-metrics/  ← VM 메트릭 (가장 큰 데이터)
+#   ./data/grafana/           ← 대시보드/사용자 설정
+#   ./data/alertmanager/      ← nflog, silences
+#   ./data/portal/            ← SQLite DB (portal.db)
