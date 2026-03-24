@@ -144,7 +144,7 @@ function Deploy-Config {
 # -----------------------------------------------
 # Windows 서비스 등록 + 환경변수 설정
 # -----------------------------------------------
-function Setup-Service {
+function Invoke-SetupService {
     $dataDir = "$ConfigDir\data"
     New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
@@ -195,8 +195,13 @@ function Setup-Service {
                      -PropertyType MultiString -Force | Out-Null
 
     # 서비스 시작
-    Start-Service -Name $ServiceName
-    Write-OK "Windows 서비스 등록 및 시작 완료"
+    try {
+        Start-Service -Name $ServiceName -ErrorAction Stop
+        Write-OK "Windows 서비스 등록 및 시작 완료"
+    } catch {
+        Write-Warn "서비스 시작 실패 (설치는 완료됨): $_"
+        Write-Warn "이벤트 뷰어에서 원인 확인 후 Restart-Service $ServiceName"
+    }
 }
 
 # -----------------------------------------------
@@ -250,6 +255,6 @@ function Show-Status {
 Invoke-ValidateArgs
 Install-Alloy
 Deploy-Config
-Setup-Service
+Invoke-SetupService
 Open-RelayPort
 Show-Status
