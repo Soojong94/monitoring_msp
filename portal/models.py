@@ -1,5 +1,10 @@
 from sqlalchemy import Column, Integer, Text, UniqueConstraint
 from database import Base
+from datetime import datetime, timezone
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
 
 
 class ServerAlias(Base):
@@ -10,8 +15,8 @@ class ServerAlias(Base):
     display_customer = Column(Text)
     display_server = Column(Text)
     notes = Column(Text)
-    created_at = Column(Text, default="datetime('now')")
-    updated_at = Column(Text, default="datetime('now')")
+    created_at = Column(Text, default=_now)
+    updated_at = Column(Text, default=_now)
 
 
 class CustomerEmail(Base):
@@ -21,7 +26,7 @@ class CustomerEmail(Base):
     customer_id = Column(Text, nullable=False)
     email = Column(Text, nullable=False)
     enabled = Column(Integer, default=1)
-    created_at = Column(Text, default="datetime('now')")
+    created_at = Column(Text, default=_now)
 
     __table_args__ = (UniqueConstraint("customer_id", "email"),)
 
@@ -33,7 +38,7 @@ class AlertThreshold(Base):
     cpu = Column(Integer, default=90)
     memory = Column(Integer, default=90)
     disk = Column(Integer, default=90)
-    updated_at = Column(Text, default="datetime('now')")
+    updated_at = Column(Text, default=_now)
 
 
 class InactiveServer(Base):
@@ -41,7 +46,7 @@ class InactiveServer(Base):
 
     customer_id = Column(Text, primary_key=True)
     server_name = Column(Text, primary_key=True)
-    deactivated_at = Column(Text, default="datetime('now')")
+    deactivated_at = Column(Text, default=_now)
     reason = Column(Text)
 
 
@@ -52,7 +57,7 @@ class PortalUser(Base):
     username = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
     role = Column(Text, default="admin")
-    created_at = Column(Text, default="datetime('now')")
+    created_at = Column(Text, default=_now)
     last_login = Column(Text)
 
 
@@ -68,4 +73,4 @@ class AlertHistory(Base):
     message = Column(Text)
     started_at = Column(Text)
     resolved_at = Column(Text)
-    received_at = Column(Text, default="datetime('now')")
+    received_at = Column(Text, default=_now)
