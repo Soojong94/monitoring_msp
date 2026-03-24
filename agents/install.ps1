@@ -144,63 +144,86 @@ function Deploy-Config {
 # -----------------------------------------------
 # Register Windows service + set env vars
 # -----------------------------------------------
+function Install-NSSM {
+    $nssmExe = "$InstallDir\nssm.exe"
+    if (Test-Path $nssmExe) {
+        Write-OK "NSSM already present"
+        return $nssmExe
+    }
+
+    Write-Step "Downloading NSSM (service wrapper)..."
+    $nssmZip = "$env:TEMP\nssm.zip"
+    $nssmTmp = "$env:TEMP\nssm-extract"
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" -OutFile $nssmZip -UseBasicParsing
+    Expand-Archive -Path $nssmZip -DestinationPath $nssmTmp -Force
+
+    $exe = Get-ChildItem -Path $nssmTmp -Filter "nssm.exe" -Recurse |
+           Where-Object { $_.Directory.Name -match "win64" } |
+           Select-Object -First 1
+    if (-not $exe) {
+        $exe = Get-ChildItem -Path $nssmTmp -Filter "nssm.exe" -Recurse | Select-Object -First 1
+    }
+    if (-not $exe) { Write-Fail "nssm.exe not found in zip." }
+
+    Copy-Item $exe.FullName -Destination $nssmExe -Force
+    Remove-Item $nssmZip  -Force
+    Remove-Item $nssmTmp  -Recurse -Force
+    Write-OK "NSSM installed: $nssmExe"
+    return $nssmExe
+}
+
 function Invoke-SetupService {
     $dataDir = "$ConfigDir\data"
     New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+
+    $nssm = Install-NSSM
 
     # Remove existing service
     $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($existing) {
         Write-Step "Removing existing service..."
         if ($existing.Status -eq "Running") {
-            Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+            & $nssm stop $ServiceName confirm | Out-Null
         }
-        & sc.exe delete $ServiceName | Out-Null
+        & $nssm remove $ServiceName confirm | Out-Null
         Start-Sleep -Seconds 2
     }
 
-    # Create service
-    $binPath = "`"$AlloyExe`" run `"$ConfigDir\config.alloy`" " +
-               "--stability.level=generally-available " +
-               "--storage.path=`"$dataDir`""
+    # Register with NSSM
+    Write-Step "Registering service via NSSM..."
+    & $nssm install $ServiceName $AlloyExe | Out-Null
+    & $nssm set $ServiceName AppParameters "run `"$ConfigDir\config.alloy`" --stability.level=generally-available --storage.path=`"$dataDir`"" | Out-Null
+    & $nssm set $ServiceName AppDirectory $InstallDir | Out-Null
+    & $nssm set $ServiceName DisplayName "Grafana Alloy MSP Agent ($Mode)" | Out-Null
+    & $nssm set $ServiceName Description "MSP Monitoring Agent - Grafana Alloy" | Out-Null
+    & $nssm set $ServiceName Start SERVICE_AUTO_START | Out-Null
+    & $nssm set $ServiceName AppStdout "$ConfigDir\logs\alloy.log" | Out-Null
+    & $nssm set $ServiceName AppStderr "$ConfigDir\logs\alloy.log" | Out-Null
+    & $nssm set $ServiceName AppRotateFiles 1 | Out-Null
+    & $nssm set $ServiceName AppRotateBytes 10485760 | Out-Null  # 10MB
 
-    New-Service `
-        -Name        $ServiceName `
-        -BinaryPathName $binPath `
-        -DisplayName "Grafana Alloy MSP Agent ($Mode)" `
-        -Description "MSP Monitoring Agent - Grafana Alloy" `
-        -StartupType Automatic | Out-Null
+    New-Item -ItemType Directory -Force -Path "$ConfigDir\logs" | Out-Null
 
-    # Set env vars via Registry (MultiString)
-    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    # Set env vars via NSSM
     $envVars = switch ($Mode) {
-        "direct" { @(
-            "CUSTOMER_ID=$CustomerId",
-            "SERVER_NAME=$ServerName",
-            "CSP=$Csp",
-            "REGION=$Region",
-            "ENVIRONMENT=$Environment",
-            "REMOTE_WRITE_URL=$RemoteWriteUrl"
-        )}
-        "relay-agent" { @(
-            "CUSTOMER_ID=$CustomerId",
-            "SERVER_NAME=$ServerName",
-            "CSP=$Csp",
-            "REGION=$Region",
-            "ENVIRONMENT=$Environment",
-            "RELAY_URL=$RelayUrl"
-        )}
+        "direct" {
+            "CUSTOMER_ID=$CustomerId`tSERVER_NAME=$ServerName`tCSP=$Csp`tREGION=$Region`tENVIRONMENT=$Environment`tREMOTE_WRITE_URL=$RemoteWriteUrl"
+        }
+        "relay-agent" {
+            "CUSTOMER_ID=$CustomerId`tSERVER_NAME=$ServerName`tCSP=$Csp`tREGION=$Region`tENVIRONMENT=$Environment`tRELAY_URL=$RelayUrl"
+        }
     }
-    New-ItemProperty -Path $regPath -Name "Environment" -Value $envVars `
-                     -PropertyType MultiString -Force | Out-Null
+    & $nssm set $ServiceName AppEnvironmentExtra $envVars | Out-Null
 
     # Start service
     try {
         Start-Service -Name $ServiceName -ErrorAction Stop
-        Write-OK "Windows service registered and started"
+        Write-OK "Service registered and started via NSSM"
     } catch {
-        Write-Warn "Service start failed (installation complete): $_"
-        Write-Warn "Check Event Viewer then run: Restart-Service $ServiceName"
+        Write-Warn "Service start failed: $_"
+        Write-Warn "Check logs: $ConfigDir\logs\alloy.log"
+        Write-Warn "Or run: nssm start $ServiceName"
     }
 }
 
@@ -241,11 +264,12 @@ function Show-Status {
         Write-Host " [OK] Alloy running" -ForegroundColor Green
     } else {
         Write-Host " [ERROR] Alloy failed to start" -ForegroundColor Red
-        Write-Host "  Event Viewer > Windows Logs > Application > Source: GrafanaAlloy"
+        Write-Host "  Check: Get-Content '$ConfigDir\logs\alloy.log' -Tail 30" -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host " Check logs  : Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20"
+    Write-Host " Check logs  : Get-Content '$ConfigDir\logs\alloy.log' -Tail 30"
     Write-Host " Restart     : Restart-Service $ServiceName"
+    Write-Host " NSSM status : '$InstallDir\nssm.exe' status $ServiceName"
     Write-Host "=============================" -ForegroundColor Green
 }
 
