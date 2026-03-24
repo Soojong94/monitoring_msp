@@ -24,11 +24,11 @@ def _make_rule_group(name: str, customer_filter: str, cpu: int, mem: int, disk: 
                     f'(100 - avg by(customer_id, server_name) '
                     f'(rate(node_cpu_seconds_total{{mode="idle"{cf}}}[5m])) * 100) > {cpu}'
                 ),
-                "for": "5m",
+                "for": "3m",
                 "labels": {"severity": "warning"},
                 "annotations": {
                     "summary": "High CPU on {{ $labels.server_name }}",
-                    "description": f"CPU > {cpu}% for 5 minutes",
+                    "description": f"CPU > {cpu}% for 3 minutes",
                 },
             },
             {
@@ -37,11 +37,11 @@ def _make_rule_group(name: str, customer_filter: str, cpu: int, mem: int, disk: 
                     f'(1 - node_memory_MemAvailable_bytes{{{cf_strip}}}'
                     f' / node_memory_MemTotal_bytes{{{cf_strip}}}) * 100 > {mem}'
                 ),
-                "for": "5m",
+                "for": "3m",
                 "labels": {"severity": "warning"},
                 "annotations": {
                     "summary": "High memory on {{ $labels.server_name }}",
-                    "description": f"Memory > {mem}% for 5 minutes",
+                    "description": f"Memory > {mem}% for 3 minutes",
                 },
             },
             {
@@ -50,21 +50,21 @@ def _make_rule_group(name: str, customer_filter: str, cpu: int, mem: int, disk: 
                     f'(1 - node_filesystem_avail_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs"{cf}}}'
                     f' / node_filesystem_size_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs"{cf}}}) * 100 > {disk}'
                 ),
-                "for": "5m",
+                "for": "3m",
                 "labels": {"severity": "warning"},
                 "annotations": {
                     "summary": "High disk on {{ $labels.server_name }}",
-                    "description": f"Disk > {disk}% for 5 minutes",
+                    "description": f"Disk > {disk}% for 3 minutes",
                 },
             },
             {
                 "alert": "ServerDown",
-                "expr": f'absent(node_uname_info{{{cf_strip}}}) == 1',
-                "for": "5m",
+                "expr": f'(time() - max by (customer_id, server_name) (timestamp(node_uname_info{{{cf_strip}}}))) > 300',
+                "for": "0m",
                 "labels": {"severity": "critical"},
                 "annotations": {
                     "summary": "Server {{ $labels.server_name }} is down",
-                    "description": "No metrics received for 5 minutes",
+                    "description": "No metrics received for more than 3 minutes",
                 },
             },
         ],
