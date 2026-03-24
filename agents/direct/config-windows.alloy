@@ -74,11 +74,19 @@ prometheus.relabel "win_compat" {
     replacement   = "node_filesystem_size_bytes"
   }
 
-  // Rename 'volume' label (C:, D:) → 'mountpoint' for disk metrics
+  // Rename 'volume' label (C:, D:) → 'mountpoint' for filesystem metrics
   rule {
     source_labels = ["volume"]
     regex         = "(.+)"
     target_label  = "mountpoint"
+    replacement   = "$1"
+  }
+
+  // Also copy 'volume' → 'device' for disk I/O metrics (node_disk_* uses device label)
+  rule {
+    source_labels = ["volume"]
+    regex         = "(.+)"
+    target_label  = "device"
     replacement   = "$1"
   }
 
@@ -105,6 +113,22 @@ prometheus.relabel "win_compat" {
     regex         = "windows_system_system_up_time"
     target_label  = "__name__"
     replacement   = "windows_uptime_seconds"
+  }
+
+  // Disk I/O read: windows_logical_disk_read_bytes_total → node_disk_read_bytes_total
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_logical_disk_read_bytes_total"
+    target_label  = "__name__"
+    replacement   = "node_disk_read_bytes_total"
+  }
+
+  // Disk I/O write: windows_logical_disk_write_bytes_total → node_disk_written_bytes_total
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_logical_disk_write_bytes_total"
+    target_label  = "__name__"
+    replacement   = "node_disk_written_bytes_total"
   }
 
   // Network receive bytes: windows_net_bytes_received_total → node_network_receive_bytes_total
