@@ -158,6 +158,27 @@ async def delete_email(
     return {"message": "Email deleted"}
 
 
+@router.delete("/config/{customer_id}", dependencies=[Depends(require_admin)])
+async def delete_customer_config(
+    customer_id: str,
+    db: Session = Depends(get_db),
+):
+    db.query(CustomerEmail).filter(CustomerEmail.customer_id == customer_id).delete()
+    db.query(AlertThreshold).filter(AlertThreshold.customer_id == customer_id).delete()
+    db.commit()
+
+    am_customers = _build_customers_for_am(db)
+    vm_thresholds = _build_thresholds_for_vmalert(db)
+
+    am_ok = await am_svc.apply_alertmanager_config(am_customers)
+    vm_ok = await vm_svc.apply_vmalert_rules(vm_thresholds)
+
+    return {
+        "message": "Customer config deleted",
+        "restarted": {"alertmanager": am_ok, "vmalert": vm_ok},
+    }
+
+
 @router.patch("/config/{customer_id}/emails/{email_id}", dependencies=[Depends(require_admin)])
 async def toggle_email(
     customer_id: str,

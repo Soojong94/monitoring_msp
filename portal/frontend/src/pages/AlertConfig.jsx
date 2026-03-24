@@ -6,7 +6,21 @@ function CustomerAlertPanel({ config, onRefresh }) {
   const [thresholds, setThresholds] = useState(config.thresholds);
   const [saving, setSaving] = useState(false);
   const [addingEmail, setAddingEmail] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const role = localStorage.getItem('role');
+
+  const handleDeleteCustomer = async () => {
+    if (!confirm(`'${config.customer_id}' 알람 설정을 삭제하시겠습니까?`)) return;
+    setDeleting(true);
+    try {
+      await api.deleteAlertConfig(config.customer_id);
+      onRefresh();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleAddEmail = async () => {
     if (!newEmail.trim()) return;
@@ -56,7 +70,18 @@ function CustomerAlertPanel({ config, onRefresh }) {
 
   return (
     <div className="bg-white rounded-xl shadow p-5">
-      <h3 className="font-semibold text-gray-800 mb-4">{config.customer_id}</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-800">{config.customer_id}</h3>
+        {role === 'admin' && (
+          <button
+            onClick={handleDeleteCustomer}
+            disabled={deleting}
+            className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100 disabled:opacity-50"
+          >
+            {deleting ? '삭제 중...' : '고객사 삭제'}
+          </button>
+        )}
+      </div>
 
       {/* Email section */}
       <div className="mb-5">

@@ -72,7 +72,7 @@ services:
     restart: unless-stopped
     command:
       - '-datasource.url=http://victoriametrics:8428'
-      - '-remoteWrite.url=http://victoriametrics:8428/api/v1/write'
+      - '-remoteWrite.url=http://victoriametrics:8428'
       - '-notifier.url=http://alertmanager:9093'
       - '-rule=/etc/vmalert/rules/*.yml'
       - '-evaluationInterval=60s'
@@ -166,7 +166,10 @@ services:
       - VICTORIAMETRICS_URL=http://victoriametrics:8428
       - ALERTMANAGER_URL=http://alertmanager:9093
       - CONFIG_DIR=/monitoring_msp/config
+      - SMTP_HOST=${SMTP_HOST:-smtp.worksmobile.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-alertmanager@tbit.co.kr}
     volumes:

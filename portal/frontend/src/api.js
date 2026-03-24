@@ -69,6 +69,8 @@ export const api = {
     apiFetch(`/api/alerts/config/${customerId}/emails/${emailId}`, { method: 'DELETE' }),
   toggleEmail: (customerId, emailId) =>
     apiFetch(`/api/alerts/config/${customerId}/emails/${emailId}`, { method: 'PATCH' }),
+  deleteAlertConfig: (customerId) =>
+    apiFetch(`/api/alerts/config/${customerId}`, { method: 'DELETE' }),
   getFiringAlerts: () => apiFetch('/api/alerts/firing'),
 
   // Agent commands

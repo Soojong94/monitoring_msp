@@ -15,13 +15,15 @@ def generate_alertmanager_config(customers: list[dict]) -> str:
     """
     customers: [{ customer_id, emails: [str] }]
     """
-    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_user = os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME", "")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
     smtp_from = os.getenv("SMTP_FROM", "alertmanager@tbit.co.kr")
+    smtp_host = os.getenv("SMTP_HOST", "smtp.worksmobile.com")
+    smtp_port = os.getenv("SMTP_PORT", "587")
 
     config = {
         "global": {
-            "smtp_smarthost": "smtp.gmail.com:587",
+            "smtp_smarthost": f"{smtp_host}:{smtp_port}",
             "smtp_from": smtp_from,
             "smtp_auth_username": smtp_user,
             "smtp_auth_password": smtp_password,
