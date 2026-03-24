@@ -325,13 +325,13 @@
     },
     {
       "id": 210,
-      "title": "CPU 임계값 도달률 (기준 80%)",
+      "title": "CPU 임계값 도달률 (기준 90%)",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 8, "x": 0, "y": 55 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "(\n  (1 - avg by (customer_id, server_name)(\n    rate(node_cpu_seconds_total{mode=\"idle\",\n      customer_id=\"$customer\", server_name=\"$server\"}[5m])\n  )) * 100\n) / 80 * 100",
+          "expr": "(\n  (1 - avg by (customer_id, server_name)(\n    rate(node_cpu_seconds_total{mode=\"idle\",\n      customer_id=\"$customer\", server_name=\"$server\"}[5m])\n  )) * 100\n) / 90 * 100",
           "refId": "A",
           "legendFormat": "__auto"
         }
@@ -361,13 +361,13 @@
     },
     {
       "id": 211,
-      "title": "메모리 임계값 도달률 (기준 85%)",
+      "title": "메모리 임계값 도달률 (기준 90%)",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 8, "x": 8, "y": 55 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "(\n  (1 - (\n    node_memory_MemAvailable_bytes{customer_id=\"$customer\", server_name=\"$server\"}\n    / node_memory_MemTotal_bytes{customer_id=\"$customer\", server_name=\"$server\"}\n  )) * 100\n) / 85 * 100",
+          "expr": "(\n  (1 - (\n    node_memory_MemAvailable_bytes{customer_id=\"$customer\", server_name=\"$server\"}\n    / node_memory_MemTotal_bytes{customer_id=\"$customer\", server_name=\"$server\"}\n  )) * 100\n) / 90 * 100",
           "refId": "A",
           "legendFormat": "__auto"
         }
