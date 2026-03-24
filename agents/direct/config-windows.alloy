@@ -106,6 +106,30 @@ prometheus.relabel "win_compat" {
     target_label  = "__name__"
     replacement   = "windows_uptime_seconds"
   }
+
+  // Network receive bytes: windows_net_bytes_received_total → node_network_receive_bytes_total
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_net_bytes_received_total"
+    target_label  = "__name__"
+    replacement   = "node_network_receive_bytes_total"
+  }
+
+  // Network transmit bytes: windows_net_bytes_sent_total → node_network_transmit_bytes_total
+  rule {
+    source_labels = ["__name__"]
+    regex         = "windows_net_bytes_sent_total"
+    target_label  = "__name__"
+    replacement   = "node_network_transmit_bytes_total"
+  }
+
+  // Rename 'nic' label → 'device' for network metrics
+  rule {
+    source_labels = ["nic"]
+    regex         = "(.+)"
+    target_label  = "device"
+    replacement   = "$1"
+  }
 }
 
 // --- Add customer/server labels ---
