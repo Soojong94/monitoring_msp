@@ -1,5 +1,6 @@
 {
   "uid": "msp-server-detail",
+  "version": 2,
   "title": "서버별 상세 현황",
   "description": "개별 서버의 OS 레벨 메트릭 상세",
   "tags": ["msp", "server", "detail"],
