@@ -1,6 +1,6 @@
 {
   "uid": "msp-server-detail",
-  "version": 3,
+  "version": 4,
   "title": "서버별 상세 현황",
   "description": "개별 서버의 OS 레벨 메트릭 상세",
   "tags": ["msp", "server", "detail"],
@@ -403,7 +403,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "max by (mountpoint) (\n  (1 - (\n    node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n    / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n  )) * 100\n) / 90 * 100",
+          "expr": "max by (mountpoint) (\n  (1 - (\n    node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n    / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n  )) * 100\n)",
           "refId": "A",
           "legendFormat": "{{mountpoint}}"
         }
