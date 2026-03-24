@@ -7,6 +7,7 @@ import AlertConfig from './pages/AlertConfig.jsx';
 import System from './pages/System.jsx';
 import Layout from './components/Layout.jsx';
 import Users from './pages/Users.jsx';
+import GrafanaUsers from './pages/GrafanaUsers.jsx';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="alerts" element={<AlertConfig />} />
           <Route path="system" element={<System />} />
           <Route path="users" element={<Users />} />
+          <Route path="grafana-users" element={<GrafanaUsers />} />
         </Route>
       </Routes>
     </BrowserRouter>

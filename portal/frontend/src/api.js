@@ -87,6 +87,13 @@ export const api = {
   deleteUser: (id) => apiFetch(`/api/users/${id}`, { method: 'DELETE' }),
   changeMyPassword: (password) => apiFetch('/api/users/me/password', { method: 'PUT', body: JSON.stringify({ password }) }),
 
+  // Grafana users
+  getGrafanaUsers: () => apiFetch('/api/grafana/users'),
+  createGrafanaUser: (data) => apiFetch('/api/grafana/users', { method: 'POST', body: JSON.stringify(data) }),
+  deleteGrafanaUser: (id) => apiFetch(`/api/grafana/users/${id}`, { method: 'DELETE' }),
+  resetGrafanaPassword: (id, password) => apiFetch(`/api/grafana/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) }),
+  updateGrafanaRole: (id, role) => apiFetch(`/api/grafana/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+
   // System
   getSystemStatus: () => apiFetch('/api/system/status'),
   restartService: (service) =>

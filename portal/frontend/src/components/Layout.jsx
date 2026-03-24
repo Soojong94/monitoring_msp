@@ -7,6 +7,7 @@ const navItems = [
   { to: '/alerts', label: '알람 설정', icon: '🔔' },
   { to: '/system', label: '시스템', icon: '⚙️' },
   { to: '/users', label: '사용자 관리', icon: '👥', adminOnly: true },
+  { to: '/grafana-users', label: 'Grafana 계정', icon: '📈', adminOnly: true },
 ];
 
 export default function Layout() {
