@@ -1,6 +1,6 @@
 global:
-  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
-  smtp_from: '${SMTP_FROM}'
+  smtp_smarthost: 'smtp.worksmobile.com:587'
+  smtp_from: '${SMTP_USERNAME}'
   smtp_auth_username: '${SMTP_USERNAME}'
   smtp_auth_password: '${SMTP_PASSWORD}'
   smtp_require_tls: true
@@ -26,7 +26,7 @@ route:
 receivers:
   - name: 'email-ops'
     email_configs:
-      - to: '${ALERT_EMAIL_TO}'
+      - to: 'ksj@tbit.co.kr'
         send_resolved: true
         headers:
           Subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - {{ .GroupLabels.customer_id }}'

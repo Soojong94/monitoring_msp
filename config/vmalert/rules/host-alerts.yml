@@ -36,7 +36,7 @@ groups:
             1 - avg by (customer_id, server_name, csp, region, environment) (
               rate(node_cpu_seconds_total{mode="idle", customer_id!=""}[5m])
             )
-          ) * 100 > 80
+          ) * 100 > 90
         for: 5m
         labels:
           severity: warning
@@ -45,7 +45,7 @@ groups:
           description: >
             {{ $labels.server_name }} (고객사: {{ $labels.customer_id }},
             {{ $labels.csp }}/{{ $labels.region }}, {{ $labels.environment }})
-            CPU 사용률이 {{ $value | humanize }}% 입니다 (기준: 80%).
+            CPU 사용률이 {{ $value | humanize }}% 입니다 (기준: 90%).
 
       # --------------------------------------------------
       # 메모리 과부하: 사용률 85% 초과 5분 지속
@@ -58,7 +58,7 @@ groups:
               node_memory_MemAvailable_bytes{customer_id!=""}
               / node_memory_MemTotal_bytes{customer_id!=""}
             )
-          ) * 100 > 85
+          ) * 100 > 90
         for: 5m
         labels:
           severity: warning
@@ -67,7 +67,7 @@ groups:
           description: >
             {{ $labels.server_name }} (고객사: {{ $labels.customer_id }},
             {{ $labels.csp }}/{{ $labels.region }}, {{ $labels.environment }})
-            메모리 사용률이 {{ $value | humanize }}% 입니다 (기준: 85%).
+            메모리 사용률이 {{ $value | humanize }}% 입니다 (기준: 90%).
 
       # --------------------------------------------------
       # 디스크 부족: 마운트포인트별 사용률 90% 초과 5분 지속
