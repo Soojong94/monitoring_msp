@@ -140,6 +140,8 @@ services:
     ports:
       - "${NGINX_HTTP_PORT:-8880}:80"
       - "${NGINX_HTTPS_PORT:-8443}:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - msp-net
     depends_on:
