@@ -144,86 +144,93 @@ function Deploy-Config {
 # -----------------------------------------------
 # Register Windows service + set env vars
 # -----------------------------------------------
-function Install-NSSM {
-    $nssmExe = "$InstallDir\nssm.exe"
-    if (Test-Path $nssmExe) {
-        Write-OK "NSSM already present"
-        return $nssmExe
+function Install-WinSW {
+    $winswExe = "$InstallDir\alloy-service.exe"
+    if (Test-Path $winswExe) {
+        Write-OK "WinSW already present"
+        return $winswExe
     }
 
-    Write-Step "Downloading NSSM (service wrapper)..."
-    $nssmZip = "$env:TEMP\nssm.zip"
-    $nssmTmp = "$env:TEMP\nssm-extract"
+    Write-Step "Downloading WinSW (service wrapper)..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" -OutFile $nssmZip -UseBasicParsing
-    Expand-Archive -Path $nssmZip -DestinationPath $nssmTmp -Force
-
-    $exe = Get-ChildItem -Path $nssmTmp -Filter "nssm.exe" -Recurse |
-           Where-Object { $_.Directory.Name -match "win64" } |
-           Select-Object -First 1
-    if (-not $exe) {
-        $exe = Get-ChildItem -Path $nssmTmp -Filter "nssm.exe" -Recurse | Select-Object -First 1
-    }
-    if (-not $exe) { Write-Fail "nssm.exe not found in zip." }
-
-    Copy-Item $exe.FullName -Destination $nssmExe -Force
-    Remove-Item $nssmZip  -Force
-    Remove-Item $nssmTmp  -Recurse -Force
-    Write-OK "NSSM installed: $nssmExe"
-    return $nssmExe
+    Invoke-WebRequest `
+        -Uri "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe" `
+        -OutFile $winswExe `
+        -UseBasicParsing
+    Write-OK "WinSW downloaded: $winswExe"
+    return $winswExe
 }
 
 function Invoke-SetupService {
-    $dataDir = "$ConfigDir\data"
-    New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+    $dataDir    = "$ConfigDir\data"
+    $logDir     = "$ConfigDir\logs"
+    $xmlPath    = "$InstallDir\alloy-service.xml"
 
-    $nssm = Install-NSSM
+    New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $logDir  | Out-Null
+
+    $winsw = Install-WinSW
 
     # Remove existing service
     $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($existing) {
         Write-Step "Removing existing service..."
         if ($existing.Status -eq "Running") {
-            & $nssm stop $ServiceName confirm | Out-Null
+            & $winsw stop | Out-Null
         }
-        & $nssm remove $ServiceName confirm | Out-Null
+        & $winsw uninstall | Out-Null
         Start-Sleep -Seconds 2
     }
 
-    # Register with NSSM
-    Write-Step "Registering service via NSSM..."
-    & $nssm install $ServiceName $AlloyExe | Out-Null
-    & $nssm set $ServiceName AppParameters "run `"$ConfigDir\config.alloy`" --stability.level=generally-available --storage.path=`"$dataDir`"" | Out-Null
-    & $nssm set $ServiceName AppDirectory $InstallDir | Out-Null
-    & $nssm set $ServiceName DisplayName "Grafana Alloy MSP Agent ($Mode)" | Out-Null
-    & $nssm set $ServiceName Description "MSP Monitoring Agent - Grafana Alloy" | Out-Null
-    & $nssm set $ServiceName Start SERVICE_AUTO_START | Out-Null
-    & $nssm set $ServiceName AppStdout "$ConfigDir\logs\alloy.log" | Out-Null
-    & $nssm set $ServiceName AppStderr "$ConfigDir\logs\alloy.log" | Out-Null
-    & $nssm set $ServiceName AppRotateFiles 1 | Out-Null
-    & $nssm set $ServiceName AppRotateBytes 10485760 | Out-Null  # 10MB
-
-    New-Item -ItemType Directory -Force -Path "$ConfigDir\logs" | Out-Null
-
-    # Set env vars via NSSM
-    $envVars = switch ($Mode) {
-        "direct" {
-            "CUSTOMER_ID=$CustomerId`tSERVER_NAME=$ServerName`tCSP=$Csp`tREGION=$Region`tENVIRONMENT=$Environment`tREMOTE_WRITE_URL=$RemoteWriteUrl"
-        }
-        "relay-agent" {
-            "CUSTOMER_ID=$CustomerId`tSERVER_NAME=$ServerName`tCSP=$Csp`tREGION=$Region`tENVIRONMENT=$Environment`tRELAY_URL=$RelayUrl"
-        }
+    # Build env vars XML fragment
+    $envXml = switch ($Mode) {
+        "direct" { @"
+  <env name="CUSTOMER_ID"      value="$CustomerId" />
+  <env name="SERVER_NAME"      value="$ServerName" />
+  <env name="CSP"              value="$Csp" />
+  <env name="REGION"           value="$Region" />
+  <env name="ENVIRONMENT"      value="$Environment" />
+  <env name="REMOTE_WRITE_URL" value="$RemoteWriteUrl" />
+"@ }
+        "relay-agent" { @"
+  <env name="CUSTOMER_ID"  value="$CustomerId" />
+  <env name="SERVER_NAME"  value="$ServerName" />
+  <env name="CSP"          value="$Csp" />
+  <env name="REGION"       value="$Region" />
+  <env name="ENVIRONMENT"  value="$Environment" />
+  <env name="RELAY_URL"    value="$RelayUrl" />
+"@ }
     }
-    & $nssm set $ServiceName AppEnvironmentExtra $envVars | Out-Null
+
+    # Write WinSW XML config (must sit next to alloy-service.exe)
+    $xml = @"
+<service>
+  <id>$ServiceName</id>
+  <name>Grafana Alloy MSP Agent ($Mode)</name>
+  <description>MSP Monitoring Agent - Grafana Alloy</description>
+  <executable>$AlloyExe</executable>
+  <arguments>run "$ConfigDir\config.alloy" --stability.level=generally-available --storage.path="$dataDir"</arguments>
+  <startmode>Automatic</startmode>
+  <logpath>$logDir</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+$envXml</service>
+"@
+    $xml | Set-Content -Path $xmlPath -Encoding UTF8
+
+    # Register and start service via WinSW
+    Write-Step "Registering service via WinSW..."
+    & $winsw install $xmlPath | Out-Null
 
     # Start service
     try {
         Start-Service -Name $ServiceName -ErrorAction Stop
-        Write-OK "Service registered and started via NSSM"
+        Write-OK "Service registered and started via WinSW"
     } catch {
         Write-Warn "Service start failed: $_"
-        Write-Warn "Check logs: $ConfigDir\logs\alloy.log"
-        Write-Warn "Or run: nssm start $ServiceName"
+        Write-Warn "Check logs: $logDir\$ServiceName.out.log"
     }
 }
 
@@ -267,9 +274,8 @@ function Show-Status {
         Write-Host "  Check: Get-Content '$ConfigDir\logs\alloy.log' -Tail 30" -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host " Check logs  : Get-Content '$ConfigDir\logs\alloy.log' -Tail 30"
+    Write-Host " Check logs  : Get-Content '$ConfigDir\logs\$ServiceName.out.log' -Tail 30"
     Write-Host " Restart     : Restart-Service $ServiceName"
-    Write-Host " NSSM status : '$InstallDir\nssm.exe' status $ServiceName"
     Write-Host "=============================" -ForegroundColor Green
 }
 
