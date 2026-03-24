@@ -99,10 +99,10 @@ export const api = {
   updateGrafanaRole: (id, role) => apiFetch(`/api/grafana/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   // Reports
-  downloadMonthlyReport: async (customerId, year, month) => {
+  downloadReport: async (customerId, fromDate, toDate) => {
     const token = getToken();
     const resp = await fetch(
-      `/api/reports/monthly?customer_id=${encodeURIComponent(customerId)}&year=${year}&month=${month}`,
+      `/api/reports/range?customer_id=${encodeURIComponent(customerId)}&from_date=${fromDate}&to_date=${toDate}`,
       { headers: token ? { Authorization: `Bearer ${token}` } : {} },
     );
     if (!resp.ok) {
@@ -113,7 +113,7 @@ export const api = {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report_${customerId}_${year}${String(month).padStart(2, '0')}.xlsx`;
+    a.download = `report_${customerId}_${fromDate}_${toDate}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   },

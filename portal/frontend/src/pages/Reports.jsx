@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api.js';
 
+function toDateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+
 export default function Reports() {
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [fromDate, setFromDate] = useState(toDateStr(firstOfMonth));
+  const [toDate, setToDate] = useState(toDateStr(now));
   const [customerId, setCustomerId] = useState('');
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,12 +25,30 @@ export default function Reports() {
       .catch(() => {});
   }, []);
 
+  const setPreset = (days) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days + 1);
+    setFromDate(toDateStr(start));
+    setToDate(toDateStr(end));
+  };
+
+  const setPresetMonth = (offsetMonths) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + offsetMonths);
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    setFromDate(toDateStr(start));
+    setToDate(toDateStr(end));
+  };
+
   const handleDownload = async () => {
-    if (!customerId) return;
+    if (!customerId || !fromDate || !toDate) return;
+    if (fromDate > toDate) { setError('시작일이 종료일보다 늦을 수 없습니다.'); return; }
     setLoading(true);
     setError('');
     try {
-      await api.downloadMonthlyReport(customerId, year, month);
+      await api.downloadReport(customerId, fromDate, toDate);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -32,14 +56,11 @@ export default function Reports() {
     }
   };
 
-  const years = [];
-  for (let y = now.getFullYear(); y >= now.getFullYear() - 3; y--) years.push(y);
-
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">월간 보고서</h1>
-        <p className="text-sm text-gray-500 mt-1">고객사별 CPU·메모리·디스크·네트워크 I/O 월간 데이터를 Excel로 다운로드</p>
+        <h1 className="text-2xl font-bold text-gray-800">보고서</h1>
+        <p className="text-sm text-gray-500 mt-1">고객사별 CPU·메모리·디스크·네트워크 I/O 데이터를 Excel로 다운로드</p>
       </div>
 
       <div className="bg-white rounded-xl shadow p-6 max-w-lg">
@@ -59,28 +80,40 @@ export default function Reports() {
             </select>
           </div>
 
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">연도</label>
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {years.map((y) => <option key={y} value={y}>{y}년</option>)}
-              </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">기간</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[
+                { label: '이번 달', action: () => setPresetMonth(0) },
+                { label: '지난 달', action: () => setPresetMonth(-1) },
+                { label: '최근 7일', action: () => setPreset(7) },
+                { label: '최근 30일', action: () => setPreset(30) },
+                { label: '최근 90일', action: () => setPreset(90) },
+              ].map(({ label, action }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={action}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">월</label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>{m}월</option>
-                ))}
-              </select>
+            <div className="flex gap-3 items-center">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-gray-400 text-sm">~</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -90,16 +123,10 @@ export default function Reports() {
 
           <button
             onClick={handleDownload}
-            disabled={loading || !customerId}
+            disabled={loading || !customerId || !fromDate || !toDate}
             className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? (
-              <>
-                <span className="animate-spin">⏳</span> 생성 중... (최대 30초)
-              </>
-            ) : (
-              '📥 Excel 다운로드'
-            )}
+            {loading ? '생성 중... (최대 60초)' : '📥 Excel 다운로드'}
           </button>
         </div>
 

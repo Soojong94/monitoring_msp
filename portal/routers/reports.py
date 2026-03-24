@@ -1,7 +1,6 @@
 import os
 import io
-from calendar import monthrange
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from auth import get_current_user
@@ -42,8 +41,7 @@ def _aggregate(results: list) -> dict:
                     continue
             except (ValueError, TypeError):
                 continue
-            date = _ts_to_date(float(ts))
-            data[server].setdefault(date, []).append(v)
+            data[server].setdefault(_ts_to_date(float(ts)), []).append(v)
     return data
 
 
@@ -52,63 +50,82 @@ def _daily_stats(data: dict) -> dict:
     result = {}
     for server, dates in data.items():
         result[server] = {}
-        for date, vals in dates.items():
+        for d, vals in dates.items():
             if vals:
-                result[server][date] = {
+                result[server][d] = {
                     "avg": round(sum(vals) / len(vals), 2),
                     "max": round(max(vals), 2),
                 }
     return result
 
 
-@router.get("/monthly")
-async def monthly_report(
+@router.get("/range")
+async def range_report(
     customer_id: str = Query(...),
-    year: int = Query(...),
-    month: int = Query(...),
+    from_date: str = Query(..., description="YYYY-MM-DD"),
+    to_date: str = Query(..., description="YYYY-MM-DD"),
     user: dict = Depends(get_current_user),
 ):
-    if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Invalid month")
+    try:
+        start_dt = datetime.strptime(from_date, "%Y-%m-%d").replace(
+            hour=0, minute=0, second=0, tzinfo=TZ_KST
+        )
+        end_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(
+            hour=23, minute=59, second=59, tzinfo=TZ_KST
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
-    days_in_month = monthrange(year, month)[1]
-    start_ts = int(datetime(year, month, 1, 0, 0, 0, tzinfo=TZ_KST).timestamp())
-    end_ts = int(datetime(year, month, days_in_month, 23, 59, 59, tzinfo=TZ_KST).timestamp())
+    if start_dt > end_dt:
+        raise HTTPException(status_code=400, detail="from_date must be before to_date")
+
+    days = (end_dt.date() - start_dt.date()).days + 1
+    if days > 366:
+        raise HTTPException(status_code=400, detail="Range cannot exceed 366 days")
+
+    start_ts = int(start_dt.timestamp())
+    end_ts = int(end_dt.timestamp())
     cid = customer_id
 
     try:
-        cpu_r, mem_r, disk_r, net_in_r, net_out_r, dr_r, dw_r = [
-            await _query_range(q, start_ts, end_ts)
-            for q in [
-                f'100 - avg by(server_name)(rate(node_cpu_seconds_total{{mode="idle",customer_id="{cid}"}}[5m])) * 100',
-                f'(1 - node_memory_MemAvailable_bytes{{customer_id="{cid}"}} / node_memory_MemTotal_bytes{{customer_id="{cid}"}}) * 100',
-                f'(1 - node_filesystem_avail_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs",customer_id="{cid}",mountpoint="/"}} / node_filesystem_size_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs",customer_id="{cid}",mountpoint="/"}}) * 100',
-                f'sum by(server_name)(rate(node_network_receive_bytes_total{{customer_id="{cid}",device!~"lo|docker.*|veth.*|br.*"}}[5m])) / 1048576',
-                f'sum by(server_name)(rate(node_network_transmit_bytes_total{{customer_id="{cid}",device!~"lo|docker.*|veth.*|br.*"}}[5m])) / 1048576',
-                f'sum by(server_name)(rate(node_disk_read_bytes_total{{customer_id="{cid}"}}[5m])) / 1048576',
-                f'sum by(server_name)(rate(node_disk_written_bytes_total{{customer_id="{cid}"}}[5m])) / 1048576',
-            ]
-        ]
+        results = []
+        for q in [
+            f'100 - avg by(server_name)(rate(node_cpu_seconds_total{{mode="idle",customer_id="{cid}"}}[5m])) * 100',
+            f'(1 - node_memory_MemAvailable_bytes{{customer_id="{cid}"}} / node_memory_MemTotal_bytes{{customer_id="{cid}"}}) * 100',
+            f'(1 - node_filesystem_avail_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs",customer_id="{cid}",mountpoint="/"}} / node_filesystem_size_bytes{{fstype!~"tmpfs|devtmpfs|overlay|squashfs",customer_id="{cid}",mountpoint="/"}}) * 100',
+            f'sum by(server_name)(rate(node_network_receive_bytes_total{{customer_id="{cid}",device!~"lo|docker.*|veth.*|br.*"}}[5m])) / 1048576',
+            f'sum by(server_name)(rate(node_network_transmit_bytes_total{{customer_id="{cid}",device!~"lo|docker.*|veth.*|br.*"}}[5m])) / 1048576',
+            f'sum by(server_name)(rate(node_disk_read_bytes_total{{customer_id="{cid}"}}[5m])) / 1048576',
+            f'sum by(server_name)(rate(node_disk_written_bytes_total{{customer_id="{cid}"}}[5m])) / 1048576',
+        ]:
+            results.append(await _query_range(q, start_ts, end_ts))
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"VictoriaMetrics query failed: {e}")
 
+    cpu_r, mem_r, disk_r, net_in_r, net_out_r, dr_r, dw_r = results
     cpu = _daily_stats(_aggregate(cpu_r))
     mem = _daily_stats(_aggregate(mem_r))
     disk = _daily_stats(_aggregate(disk_r))
     net_in = _daily_stats(_aggregate(net_in_r))
     net_out = _daily_stats(_aggregate(net_out_r))
-    disk_r_s = _daily_stats(_aggregate(dr_r))
-    disk_w_s = _daily_stats(_aggregate(dw_r))
+    disk_rd = _daily_stats(_aggregate(dr_r))
+    disk_wr = _daily_stats(_aggregate(dw_r))
 
     all_servers = sorted(
-        set(cpu) | set(mem) | set(disk) | set(net_in) | set(net_out) | set(disk_r_s) | set(disk_w_s)
+        set(cpu) | set(mem) | set(disk) | set(net_in) | set(net_out) | set(disk_rd) | set(disk_wr)
     )
-    all_dates = [f"{year}-{month:02d}-{d:02d}" for d in range(1, days_in_month + 1)]
+
+    # All dates in range
+    all_dates = []
+    cur = start_dt.date()
+    while cur <= end_dt.date():
+        all_dates.append(cur.strftime("%Y-%m-%d"))
+        cur += timedelta(days=1)
 
     # Build Excel
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = f"{year}년 {month:02d}월"
+    ws.title = f"{from_date}~{to_date}"
 
     hdr_font = Font(bold=True, color="FFFFFF")
     hdr_fill = PatternFill(fill_type="solid", fgColor="2563EB")
@@ -128,18 +145,18 @@ async def monthly_report(
         cell.fill = hdr_fill
         cell.alignment = center
 
-    def g(d, server, date, stat):
-        return d.get(server, {}).get(date, {}).get(stat, "")
+    def g(d, server, dt, stat):
+        return d.get(server, {}).get(dt, {}).get(stat, "")
 
     for server in all_servers:
-        for date in all_dates:
+        for dt in all_dates:
             ws.append([
-                customer_id, server, date,
-                g(cpu, server, date, "avg"), g(cpu, server, date, "max"),
-                g(mem, server, date, "avg"), g(mem, server, date, "max"),
-                g(disk, server, date, "avg"),
-                g(net_in, server, date, "avg"), g(net_out, server, date, "avg"),
-                g(disk_r_s, server, date, "avg"), g(disk_w_s, server, date, "avg"),
+                customer_id, server, dt,
+                g(cpu, server, dt, "avg"), g(cpu, server, dt, "max"),
+                g(mem, server, dt, "avg"), g(mem, server, dt, "max"),
+                g(disk, server, dt, "avg"),
+                g(net_in, server, dt, "avg"), g(net_out, server, dt, "avg"),
+                g(disk_rd, server, dt, "avg"), g(disk_wr, server, dt, "avg"),
             ])
 
     for col in ws.columns:
@@ -152,7 +169,7 @@ async def monthly_report(
     wb.save(buf)
     buf.seek(0)
 
-    filename = f"report_{customer_id}_{year}{month:02d}.xlsx"
+    filename = f"report_{customer_id}_{from_date}_{to_date}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
