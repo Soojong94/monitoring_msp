@@ -214,11 +214,18 @@ cd monitoring_msp
 # 서비스 상태 확인
 Get-Service GrafanaAlloy
 
-# 로그 확인 (이벤트 뷰어)
-Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20
+# 로그 확인 (WinSW 래퍼 로그)
+Get-Content "C:\ProgramData\GrafanaAlloy\logs\alloy-service.out.log" -Tail 30
 ```
 
 `Status: Running` 확인.
+
+2~3분 후 중앙 서버에서 수신 확인:
+
+```bash
+curl -s "http://localhost:8428/api/v1/label/server_name/values"
+# {"status":"success","data":["kt-win-web-01",...]}
+```
 
 ---
 
@@ -253,11 +260,38 @@ Stop-Service GrafanaAlloy
 Start-Service GrafanaAlloy
 
 # 설정 파일 위치
-C:\ProgramData\GrafanaAlloy\config.alloy
+C:\ProgramData\GrafanaAlloy\config.alloy       # Alloy 설정 (Alloy 언어)
+C:\Program Files\GrafanaLabs\Alloy\alloy-service.xml  # WinSW 서비스 설정 (환경변수 포함)
 
-# 로그 확인
-Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 50
+# 로그 확인 (WinSW 래퍼가 남기는 로그)
+Get-Content "C:\ProgramData\GrafanaAlloy\logs\alloy-service.out.log" -Tail 30
+
+# 환경변수 변경 시 → alloy-service.xml 수정 후 서비스 재등록
+# (또는 install.ps1 재실행)
 ```
+
+---
+
+## Windows 수집 메트릭 및 대시보드 호환성
+
+Windows 에이전트(`config-windows.alloy`)는 `windows_exporter` 기반으로 메트릭을 수집하며,
+Grafana 대시보드가 Linux `node_exporter` 메트릭 이름을 기준으로 구성되어 있어
+**`prometheus.relabel`로 자동 변환**한다.
+
+| Linux (node_exporter) | Windows (변환 전) | 비고 |
+|-----------------------|-------------------|------|
+| `node_cpu_seconds_total` | `windows_cpu_time_total` | mode 라벨 동일 |
+| `node_memory_MemAvailable_bytes` | `windows_memory_available_bytes` | |
+| `node_memory_MemTotal_bytes` | `windows_cs_physical_memory_bytes` | cs 컬렉터 |
+| `node_filesystem_avail_bytes` | `windows_logical_disk_free_bytes` | volume → mountpoint 라벨 변환 |
+| `node_filesystem_size_bytes` | `windows_logical_disk_size_bytes` | fstype=NTFS 추가 |
+| `node_disk_read_bytes_total` | `windows_logical_disk_read_bytes_total` | volume → device 라벨 변환 |
+| `node_disk_written_bytes_total` | `windows_logical_disk_write_bytes_total` | |
+| `node_network_receive_bytes_total` | `windows_net_bytes_received_total` | nic → device 라벨 변환 |
+| `node_network_transmit_bytes_total` | `windows_net_bytes_sent_total` | |
+| `node_uname_info` | `windows_os_info` | |
+
+> **Load Average**: Linux 전용 개념. Windows 서버에서 해당 패널은 "No data"로 표시되며 정상 동작임.
 
 ---
 
@@ -269,4 +303,6 @@ Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 50
 | 중앙 서버에 메트릭 미수신 | remote-write-url 오류 또는 방화벽 | `curl https://grafana.tbit.co.kr/health` 테스트 |
 | relay-agent → relay-server 연결 실패 | relay-url 오류 또는 :9999 방화벽 | `curl http://<relay_IP>:9999/` 테스트 |
 | `package alloy not found` | Grafana apt/yum 저장소 없음 | install.sh가 자동 추가. `journalctl` 로 오류 확인 |
-| Windows: 서비스 시작 실패 | config 파일 경로 오류 | 이벤트 뷰어 → Application → GrafanaAlloy |
+| Windows: 서비스 시작 30초 후 자동 중지 (Event 7009/7000) | Alloy 단독 실행 시 Windows SCM 프로토콜 미구현 → 타임아웃 | WinSW 래퍼가 SCM 핸들링. install.ps1 재실행하면 자동 해결 |
+| Windows: 메트릭이 VictoriaMetrics에는 있는데 대시보드에 안 보임 | config-windows.alloy가 구버전 (win_compat 릴레이 없음) | `git pull` 후 config 재배포: `Copy-Item agents\direct\config-windows.alloy C:\ProgramData\GrafanaAlloy\config.alloy` → `Restart-Service GrafanaAlloy` |
+| Windows: 로그 파일을 못 찾겠음 | WinSW는 서비스 exe 이름 기준으로 로그 생성 | `C:\ProgramData\GrafanaAlloy\logs\alloy-service.out.log` 확인 |

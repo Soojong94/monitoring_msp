@@ -405,6 +405,7 @@ sudo systemctl restart alloy
 - Windows 10 / Windows Server 2016 이상
 - PowerShell 5.1 이상
 - **관리자 권한으로 PowerShell 실행** 필수
+- 인터넷 접근 가능 (Alloy 바이너리 + WinSW 서비스 래퍼 자동 다운로드)
 
 ### 설치 (PowerShell 관리자)
 
@@ -432,14 +433,18 @@ sudo systemctl restart alloy
   -RelayUrl http://<relay서버_내부IP>:9999/api/v1/metrics/write
 ```
 
+> **서비스 래퍼**: install.ps1은 내부적으로 **WinSW(Windows Service Wrapper)** v2.12.0을 사용한다.
+> Alloy 단독 실행 시 Windows SCM(서비스 제어 관리자) 프로토콜을 구현하지 않아 30초 타임아웃으로
+> 서비스가 자동 중지되는 문제가 있는데, WinSW가 이를 대신 처리한다.
+
 ### 설치 확인
 
 ```powershell
 # 서비스 상태 확인
 Get-Service GrafanaAlloy
 
-# 이벤트 로그 확인
-Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20
+# 로그 확인 (WinSW 래퍼 로그)
+Get-Content "C:\ProgramData\GrafanaAlloy\logs\alloy-service.out.log" -Tail 30
 ```
 
 ### Windows 에이전트 관리
@@ -448,13 +453,28 @@ Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20
 # 서비스 재시작
 Restart-Service GrafanaAlloy
 
-# 환경변수 변경 (레지스트리)
-# HKLM:\SYSTEM\CurrentControlSet\Services\GrafanaAlloy\Environment
+# config만 교체하고 재시작 (설정 변경 시)
+Copy-Item agents\direct\config-windows.alloy C:\ProgramData\GrafanaAlloy\config.alloy
+Restart-Service GrafanaAlloy
 
 # 서비스 중지/제거
 Stop-Service GrafanaAlloy
-sc.exe delete GrafanaAlloy
+& "C:\Program Files\GrafanaLabs\Alloy\alloy-service.exe" uninstall
 ```
+
+### Windows 수집 메트릭
+
+Linux `node_exporter`와 동일한 대시보드를 사용하기 위해 `config-windows.alloy`에서 메트릭 이름을 자동 변환한다.
+
+| 항목 | 상태 |
+|------|------|
+| CPU 사용률 | ✅ 지원 |
+| 메모리 사용률/용량 | ✅ 지원 |
+| 디스크 사용률 (C:, D: 등) | ✅ 지원 |
+| 디스크 I/O (읽기/쓰기) | ✅ 지원 |
+| 네트워크 송수신 | ✅ 지원 |
+| Uptime | ✅ 지원 |
+| Load Average | ❌ Linux 전용 (Windows에서 "No data" — 정상) |
 
 ---
 
@@ -545,14 +565,18 @@ docker compose down && docker compose up -d
 
 ### 에이전트 수집 메트릭
 
-| 메트릭 | 수집 항목 |
-|--------|-----------|
-| CPU | 사용률 (idle 역수), 코어별 |
-| 메모리 | 사용률, 전체/가용 용량 |
-| 디스크 사용량 | 마운트포인트별 used/avail/total (ext4, xfs 등 실제 FS만) |
-| 디스크 I/O | 장치별 읽기/쓰기 속도 |
-| 네트워크 | NIC별 수신/송신 속도 및 누적량 |
-| 시스템 | Uptime (부팅 시각 기준), Load Average, hostname |
+| 메트릭 | Linux | Windows | 비고 |
+|--------|-------|---------|------|
+| CPU 사용률 | ✅ | ✅ | |
+| 메모리 사용률/용량 | ✅ | ✅ | |
+| 디스크 사용량 | ✅ | ✅ | Linux: ext4/xfs만, Windows: NTFS(C:, D: 등) |
+| 디스크 I/O | ✅ | ✅ | |
+| 네트워크 송수신 | ✅ | ✅ | |
+| Uptime | ✅ | ✅ | |
+| Load Average | ✅ | ❌ | Linux 전용 개념. Windows에서는 "No data" (정상) |
+
+> **Windows 메트릭 호환성**: `config-windows.alloy`는 `windows_exporter`가 생성하는 `windows_*` 메트릭을
+> `prometheus.relabel`로 `node_*` 이름으로 자동 변환하여 Linux/Windows가 동일한 Grafana 대시보드를 공유한다.
 
 ### 라벨 체계
 
@@ -648,6 +672,37 @@ systemctl restart alloy
 docker compose build grafana && docker compose up -d grafana
 ```
 
+### Windows: 서비스 시작 30초 후 자동 중지 (이벤트 7009/7000)
+
+Alloy 단독 실행 시 Windows SCM(서비스 제어 관리자) 프로토콜(`SetServiceStatus`)을 구현하지 않아
+30초 타임아웃 후 서비스가 자동 중지된다.
+
+`install.ps1`이 **WinSW(Windows Service Wrapper)** v2.12.0을 자동으로 설치하여 이 문제를 해결한다.
+수동으로 `New-Service`나 `sc.exe`로 등록하면 동일 문제가 재발한다.
+
+```powershell
+# 이벤트 로그로 확인
+Get-EventLog -LogName System -Source "Service Control Manager" -Newest 10 | Where-Object { $_.Message -like "*Alloy*" }
+
+# 해결: install.ps1 재실행 (WinSW가 자동 처리)
+.\agents\install.ps1 -Mode direct -CustomerId <id> -ServerName <name> ...
+```
+
+### Windows: 메트릭이 VictoriaMetrics에는 있는데 대시보드에 안 보일 때
+
+`config-windows.alloy`가 구버전인 경우. 최신 config에는 `prometheus.relabel "win_compat"` 블록이 있어
+`windows_*` → `node_*` 메트릭 이름을 자동 변환한다.
+
+```powershell
+# config 버전 확인 (win_compat 블록 있는지)
+Select-String "win_compat" C:\ProgramData\GrafanaAlloy\config.alloy
+
+# 없으면 최신 config 배포
+git pull
+Copy-Item agents\direct\config-windows.alloy C:\ProgramData\GrafanaAlloy\config.alloy
+Restart-Service GrafanaAlloy
+```
+
 ### Alertmanager v2 API
 
 v0.27 이상에서 `/api/v1/alerts`는 제거됨 (410 Gone). v2 사용:
@@ -727,6 +782,15 @@ monitoring_msp/
 |------|------|------|
 | NCP 211.188.53.76 | 중앙 모니터링 서버 | https://grafana.tbit.co.kr |
 | contract-management-server | relay-server (web-01) | 내부망 |
+
+**지원 OS (중앙 서버 변경 없이 즉시 연동 가능):**
+
+| OS | 에이전트 | 대시보드 호환 |
+|----|---------|------------|
+| Ubuntu / Debian | install.sh | ✅ 전체 패널 |
+| Rocky / CentOS / RHEL | install.sh | ✅ 전체 패널 |
+| Amazon Linux | install.sh | ✅ 전체 패널 |
+| Windows Server 2016+ / Windows 10/11 | install.ps1 | ✅ 전체 패널 (Load Average 제외) |
 
 ---
 
