@@ -77,7 +77,7 @@ sudo ./install.sh \
   --csp=<CSP> \
   --region=<리전> \
   --environment=prod \
-  --remote-write-url=http://<중앙서버IP>:8880/api/v1/write
+  --remote-write-url=https://grafana.tbit.co.kr/api/v1/write
 ```
 
 ### 파라미터 설명
@@ -90,7 +90,7 @@ sudo ./install.sh \
 | `--csp` | 클라우드 제공자 | `kt`, `aws`, `naver`, `nhn` |
 | `--region` | 리전 | `kc1`, `ap-northeast-2` |
 | `--environment` | 환경 (기본값: prod) | `prod`, `staging`, `test` |
-| `--remote-write-url` | 중앙 서버 수신 URL | `http://1.2.3.4:8880/api/v1/write` |
+| `--remote-write-url` | 중앙 서버 수신 URL | `https://grafana.tbit.co.kr/api/v1/write` |
 
 ### 설치 확인
 
@@ -142,14 +142,14 @@ journalctl -u alloy -f
 
 ```bash
 # VictoriaMetrics에서 등록된 서버 목록 조회
-curl -s "http://중앙서버IP:8880/api/v1/label/server_name/values"
+docker exec msp-victoriametrics wget -qO- "http://localhost:8428/api/v1/label/server_name/values"
 # 결과: {"status":"success","data":["relay-01","agent-01",...]}
 ```
 
 또는 Grafana 대시보드에서 확인:
-- `http://중앙서버IP:8880` 접속
-- Nginx Basic Auth: `admin` / `changeme`
-- Grafana 로그인: `admin` / `changeme`
+- `https://grafana.tbit.co.kr` 접속
+- Nginx Basic Auth: .env의 NGINX_BASIC_AUTH_USER / NGINX_BASIC_AUTH_PASSWORD
+- Grafana 로그인: .env의 GF_ADMIN_USER / GF_ADMIN_PASSWORD
 - MSP Overview 대시보드에서 서버 목록 확인
 
 ---
@@ -195,5 +195,5 @@ journalctl -u alloy --since "10 minutes ago"
 |------|------|------|
 | `[ERROR] Alloy 실행 실패` | config 또는 env 파일 오류 | `journalctl -u alloy -n 30` 로그 확인 |
 | 릴레이 포트 9999 접속 불가 | 방화벽 차단 | `ufw allow 9999/tcp` 또는 `firewall-cmd --add-port=9999/tcp` |
-| 중앙 서버에 메트릭 안 옴 | remote-write-url 오류 또는 네트워크 차단 | URL 확인, `curl http://중앙서버:8880/health` 테스트 |
+| 중앙 서버에 메트릭 안 옴 | remote-write-url 오류 또는 네트워크 차단 | URL 확인, `curl https://grafana.tbit.co.kr/health` 테스트 |
 | 에이전트 → 릴레이 연결 실패 | relay-url 오류 | `curl http://릴레이IP:9999/` 연결 테스트 |

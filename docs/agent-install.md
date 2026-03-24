@@ -7,7 +7,7 @@
 ## 개요
 
 ```
-중앙 서버 :8880
+중앙 서버 :443 (HTTPS)
     ▲
     │ push (remote_write)
     │
@@ -73,7 +73,7 @@ sudo ./agents/install.sh \
   --csp=kt \
   --region=kc1 \
   --environment=prod \
-  --remote-write-url=http://<중앙서버_IP>:8880/api/v1/write
+  --remote-write-url=https://grafana.tbit.co.kr/api/v1/write
 ```
 
 ---
@@ -91,7 +91,7 @@ sudo ./agents/install.sh \
   --csp=kt \
   --region=kc1 \
   --environment=prod \
-  --remote-write-url=http://<중앙서버_IP>:8880/api/v1/write
+  --remote-write-url=https://grafana.tbit.co.kr/api/v1/write
 ```
 
 **설치 후 확인:**
@@ -142,7 +142,7 @@ journalctl -u alloy -f    # 실시간 로그
 2~3분 후 중앙 서버에서 수신 확인:
 
 ```bash
-curl -s "http://<중앙서버_IP>:8428/api/v1/label/server_name/values"
+docker exec msp-victoriametrics wget -qO- "http://localhost:8428/api/v1/label/server_name/values"
 # {"status":"success","data":["kt-prod-web-01",...]}
 ```
 
@@ -188,7 +188,7 @@ cd monitoring_msp
   -Csp kt `
   -Region kc1 `
   -Environment prod `
-  -RemoteWriteUrl http://<중앙서버_IP>:8880/api/v1/write
+  -RemoteWriteUrl https://grafana.tbit.co.kr/api/v1/write
 ```
 
 ---
@@ -266,7 +266,7 @@ Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 50
 | 증상 | 원인 | 해결 |
 |------|------|------|
 | `[ERROR] Alloy 실행 실패` | config 또는 env 파일 오류 | `journalctl -u alloy -n 30` 확인 |
-| 중앙 서버에 메트릭 미수신 | remote-write-url 오류 또는 방화벽 | `curl http://<중앙서버>:8880/health` 테스트 |
+| 중앙 서버에 메트릭 미수신 | remote-write-url 오류 또는 방화벽 | `curl https://grafana.tbit.co.kr/health` 테스트 |
 | relay-agent → relay-server 연결 실패 | relay-url 오류 또는 :9999 방화벽 | `curl http://<relay_IP>:9999/` 테스트 |
 | `package alloy not found` | Grafana apt/yum 저장소 없음 | install.sh가 자동 추가. `journalctl` 로 오류 확인 |
 | Windows: 서비스 시작 실패 | config 파일 경로 오류 | 이벤트 뷰어 → Application → GrafanaAlloy |
