@@ -98,13 +98,13 @@
     },
     {
       "id": 4,
-      "title": "디스크 사용률 (/)",
+      "title": "디스크 사용률 (최대)",
       "type": "gauge",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "(1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\", mountpoint=\"/\"}\n   / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\", mountpoint=\"/\"}\n) * 100", "refId": "A" }]
+      "targets": [{ "expr": "max by (server_name) (\n  (1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n     / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n  ) * 100\n)", "refId": "A" }]
     },
     {
       "title": "CPU 상세",
@@ -285,9 +285,40 @@
       ]
     },
     {
+      "id": 11,
+      "title": "디스크 사용률 (마운트포인트별)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 90 }]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "(1 - node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n   / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n) * 100",
+          "legendFormat": "{{mountpoint}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "title": "임계값 근접 경고",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
       "id": 105,
       "collapsed": false
     },
@@ -295,7 +326,7 @@
       "id": 210,
       "title": "CPU 임계값 도달률 (기준 80%)",
       "type": "gauge",
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 46 },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 55 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -331,7 +362,7 @@
       "id": 211,
       "title": "메모리 임계값 도달률 (기준 85%)",
       "type": "gauge",
-      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 46 },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 55 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
@@ -365,15 +396,15 @@
     },
     {
       "id": 212,
-      "title": "디스크 임계값 도달률 (기준 90%, mountpoint=/)",
+      "title": "디스크 임계값 도달률 (기준 90%, 마운트포인트별)",
       "type": "gauge",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 46 },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 55 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "(\n  (1 - (\n    node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      mountpoint=\"/\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"}\n    / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      mountpoint=\"/\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"}\n  )) * 100\n) / 90 * 100",
+          "expr": "(\n  (1 - (\n    node_filesystem_avail_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n    / node_filesystem_size_bytes{customer_id=\"$customer\", server_name=\"$server\",\n      fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\\\..*\"}\n  )) * 100\n) / 90 * 100",
           "refId": "A",
-          "legendFormat": "__auto"
+          "legendFormat": "{{mountpoint}}"
         }
       ],
       "fieldConfig": {
@@ -394,7 +425,7 @@
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       }
