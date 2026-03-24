@@ -1,8 +1,10 @@
 import os
+import httpx
 import yaml
 from services.docker_mgr import restart_container
 
 CONFIG_DIR = os.getenv("CONFIG_DIR", "/monitoring_msp/config")
+VMALERT_URL = os.getenv("VMALERT_URL", "http://vmalert:8180")
 DEFAULT_THRESHOLDS = {"cpu": 90, "memory": 90, "disk": 90}
 
 
@@ -107,4 +109,10 @@ async def apply_vmalert_rules(customers_thresholds: list[dict]) -> bool:
     content = generate_vmalert_rules(customers_thresholds)
     with open(path, "w") as f:
         f.write(content)
-    return await restart_container("msp-vmalert")
+    # Hot-reload instead of restart (preserves pending alert state)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(f"{VMALERT_URL}/-/reload")
+            return resp.status_code == 200
+    except Exception:
+        return await restart_container("msp-vmalert")

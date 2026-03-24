@@ -1,8 +1,10 @@
 import os
+import httpx
 import yaml
 from services.docker_mgr import restart_container
 
 CONFIG_DIR = os.getenv("CONFIG_DIR", "/monitoring_msp/config")
+AM_URL = os.getenv("ALERTMANAGER_URL", "http://alertmanager:9093")
 
 
 def get_alertmanager_config_path() -> str:
@@ -66,4 +68,10 @@ async def apply_alertmanager_config(customers: list[dict]) -> bool:
     content = generate_alertmanager_config(customers)
     with open(path, "w") as f:
         f.write(content)
-    return await restart_container("msp-alertmanager")
+    # Hot-reload instead of restart (preserves alert state)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(f"{AM_URL}/-/reload")
+            return resp.status_code == 200
+    except Exception:
+        return await restart_container("msp-alertmanager")

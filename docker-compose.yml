@@ -165,6 +165,7 @@ services:
       - PORTAL_INIT_PASSWORD=${PORTAL_INIT_PASSWORD:-changeme123}
       - VICTORIAMETRICS_URL=http://victoriametrics:8428
       - ALERTMANAGER_URL=http://alertmanager:9093
+      - VMALERT_URL=http://vmalert:8180
       - CONFIG_DIR=/monitoring_msp/config
       - SMTP_HOST=${SMTP_HOST:-smtp.worksmobile.com}
       - SMTP_PORT=${SMTP_PORT:-587}
