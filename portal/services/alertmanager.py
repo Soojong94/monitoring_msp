@@ -34,7 +34,7 @@ def generate_alertmanager_config(customers: list[dict]) -> str:
             "group_by": ["customer_id", "alertname"],
             "group_wait": "30s",
             "group_interval": "5m",
-            "repeat_interval": "4h",
+            "repeat_interval": "1h",
             "routes": [],
         },
         "receivers": [{"name": "blackhole"}],
