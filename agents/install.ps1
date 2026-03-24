@@ -1,10 +1,10 @@
 # ============================================
-# MSP Monitoring - Grafana Alloy Windows 설치 스크립트
+# MSP Monitoring - Grafana Alloy Windows Installer
 # ============================================
-# 지원 OS: Windows Server 2016+, Windows 10/11
+# Supported OS: Windows Server 2016+, Windows 10/11
 #
-# 사용법 (관리자 PowerShell):
-#   # Direct 모드
+# Usage (Admin PowerShell):
+#   # Direct mode
 #   .\install.ps1 `
 #     -Mode direct `
 #     -CustomerId kt `
@@ -12,9 +12,9 @@
 #     -Csp kt `
 #     -Region kc1 `
 #     -Environment prod `
-#     -RemoteWriteUrl http://[중앙서버IP]:8880/api/v1/write
+#     -RemoteWriteUrl https://grafana.tbit.co.kr/api/v1/write
 #
-#   # Relay-agent 모드 (outbound 차단 서버)
+#   # Relay-agent mode (no outbound internet)
 #   .\install.ps1 `
 #     -Mode relay-agent `
 #     -CustomerId kt `
@@ -40,7 +40,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # -----------------------------------------------
-# 설정
+# Config
 # -----------------------------------------------
 $AlloyVersion = "1.5.1"
 $InstallDir   = "$env:ProgramFiles\GrafanaLabs\Alloy"
@@ -50,7 +50,7 @@ $AlloyExe     = "$InstallDir\alloy.exe"
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # -----------------------------------------------
-# 헬퍼
+# Helpers
 # -----------------------------------------------
 function Write-Step($msg) { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
 function Write-OK($msg)   { Write-Host "[OK]   $msg" -ForegroundColor Green }
@@ -61,40 +61,40 @@ function Write-Fail($msg) {
 }
 
 # -----------------------------------------------
-# 필수 인자 검증
+# Validate arguments
 # -----------------------------------------------
 function Invoke-ValidateArgs {
-    if (-not $Mode) { Write-Fail "--Mode 필요 (direct | relay-agent)" }
+    if (-not $Mode) { Write-Fail "--Mode required (direct | relay-agent)" }
 
     switch ($Mode) {
         "direct" {
-            if (-not $CustomerId)      { Write-Fail "--CustomerId 필요" }
-            if (-not $ServerName)      { Write-Fail "--ServerName 필요" }
-            if (-not $Csp)             { Write-Fail "--Csp 필요" }
-            if (-not $Region)          { Write-Fail "--Region 필요" }
-            if (-not $RemoteWriteUrl)  { Write-Fail "--RemoteWriteUrl 필요" }
+            if (-not $CustomerId)      { Write-Fail "--CustomerId required" }
+            if (-not $ServerName)      { Write-Fail "--ServerName required" }
+            if (-not $Csp)             { Write-Fail "--Csp required" }
+            if (-not $Region)          { Write-Fail "--Region required" }
+            if (-not $RemoteWriteUrl)  { Write-Fail "--RemoteWriteUrl required" }
         }
         "relay-agent" {
-            if (-not $CustomerId)  { Write-Fail "--CustomerId 필요" }
-            if (-not $ServerName)  { Write-Fail "--ServerName 필요" }
-            if (-not $Csp)         { Write-Fail "--Csp 필요" }
-            if (-not $Region)      { Write-Fail "--Region 필요" }
-            if (-not $RelayUrl)    { Write-Fail "--RelayUrl 필요" }
+            if (-not $CustomerId)  { Write-Fail "--CustomerId required" }
+            if (-not $ServerName)  { Write-Fail "--ServerName required" }
+            if (-not $Csp)         { Write-Fail "--Csp required" }
+            if (-not $Region)      { Write-Fail "--Region required" }
+            if (-not $RelayUrl)    { Write-Fail "--RelayUrl required" }
         }
-        default { Write-Fail "알 수 없는 모드: $Mode (direct | relay-agent)" }
+        default { Write-Fail "Unknown mode: $Mode (direct | relay-agent)" }
     }
 }
 
 # -----------------------------------------------
-# Grafana Alloy 설치
+# Install Grafana Alloy
 # -----------------------------------------------
 function Install-Alloy {
-    Write-Step "Grafana Alloy v$AlloyVersion 설치 확인..."
+    Write-Step "Checking Grafana Alloy v$AlloyVersion..."
 
     if (Test-Path $AlloyExe) {
         $ver = (& $AlloyExe --version 2>&1) -join "" | Select-String -Pattern "v[\d.]+" |
                ForEach-Object { $_.Matches[0].Value }
-        Write-OK "Alloy 이미 설치됨: $ver"
+        Write-OK "Alloy already installed: $ver"
         return
     }
 
@@ -105,25 +105,25 @@ function Install-Alloy {
     $zipTmp = "$env:TEMP\alloy-windows.zip"
     $exeTmp = "$env:TEMP\alloy-extract"
 
-    Write-Step "다운로드 중: $zipUrl"
+    Write-Step "Downloading: $zipUrl"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipTmp -UseBasicParsing
 
-    Write-Step "압축 해제 중..."
+    Write-Step "Extracting..."
     Expand-Archive -Path $zipTmp -DestinationPath $exeTmp -Force
 
     $exeFile = Get-ChildItem -Path $exeTmp -Filter "alloy*.exe" -Recurse | Select-Object -First 1
-    if (-not $exeFile) { Write-Fail "zip에서 alloy exe를 찾을 수 없습니다." }
+    if (-not $exeFile) { Write-Fail "alloy exe not found in zip." }
     Copy-Item $exeFile.FullName -Destination $AlloyExe -Force
 
     Remove-Item $zipTmp  -Force
     Remove-Item $exeTmp  -Recurse -Force
 
-    Write-OK "Alloy 설치 완료: $AlloyExe"
+    Write-OK "Alloy installed: $AlloyExe"
 }
 
 # -----------------------------------------------
-# Config 파일 배포
+# Deploy config file
 # -----------------------------------------------
 function Deploy-Config {
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
@@ -134,24 +134,24 @@ function Deploy-Config {
     }
 
     if (-not (Test-Path $configSrc)) {
-        Write-Fail "Config 파일 없음: $configSrc`n install.ps1과 같은 디렉토리에 agents/ 구조가 있어야 합니다."
+        Write-Fail "Config file not found: $configSrc - agents/ directory must be alongside install.ps1"
     }
 
     Copy-Item $configSrc -Destination "$ConfigDir\config.alloy" -Force
-    Write-OK "Config 배포 완료: $ConfigDir\config.alloy"
+    Write-OK "Config deployed: $ConfigDir\config.alloy"
 }
 
 # -----------------------------------------------
-# Windows 서비스 등록 + 환경변수 설정
+# Register Windows service + set env vars
 # -----------------------------------------------
 function Invoke-SetupService {
     $dataDir = "$ConfigDir\data"
     New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
-    # 기존 서비스 제거
+    # Remove existing service
     $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($existing) {
-        Write-Step "기존 서비스 제거 중..."
+        Write-Step "Removing existing service..."
         if ($existing.Status -eq "Running") {
             Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
         }
@@ -159,7 +159,7 @@ function Invoke-SetupService {
         Start-Sleep -Seconds 2
     }
 
-    # 서비스 생성
+    # Create service
     $binPath = "`"$AlloyExe`" run `"$ConfigDir\config.alloy`" " +
                "--stability.level=generally-available " +
                "--storage.path=`"$dataDir`""
@@ -171,7 +171,7 @@ function Invoke-SetupService {
         -Description "MSP Monitoring Agent - Grafana Alloy" `
         -StartupType Automatic | Out-Null
 
-    # 환경변수 설정 (Registry MultiString)
+    # Set env vars via Registry (MultiString)
     $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
     $envVars = switch ($Mode) {
         "direct" { @(
@@ -194,42 +194,42 @@ function Invoke-SetupService {
     New-ItemProperty -Path $regPath -Name "Environment" -Value $envVars `
                      -PropertyType MultiString -Force | Out-Null
 
-    # 서비스 시작
+    # Start service
     try {
         Start-Service -Name $ServiceName -ErrorAction Stop
-        Write-OK "Windows 서비스 등록 및 시작 완료"
+        Write-OK "Windows service registered and started"
     } catch {
-        Write-Warn "서비스 시작 실패 (설치는 완료됨): $_"
-        Write-Warn "이벤트 뷰어에서 원인 확인 후 Restart-Service $ServiceName"
+        Write-Warn "Service start failed (installation complete): $_"
+        Write-Warn "Check Event Viewer then run: Restart-Service $ServiceName"
     }
 }
 
 # -----------------------------------------------
-# 방화벽 규칙 (relay-server 전용 — 현재 미사용)
+# Firewall rule (relay-server only - currently unused)
 # -----------------------------------------------
 function Open-RelayPort {
     if ($Mode -ne "relay-server") { return }
-    Write-Step "릴레이 포트 9999 방화벽 오픈..."
+    Write-Step "Opening relay port 9999..."
     try {
         New-NetFirewallRule -DisplayName "MSP Alloy Relay (9999)" `
             -Direction Inbound -Protocol TCP -LocalPort 9999 `
             -Action Allow -ErrorAction Stop | Out-Null
-        Write-OK "방화벽 규칙 추가 완료 (TCP 9999)"
+        Write-OK "Firewall rule added (TCP 9999)"
     } catch {
-        Write-Warn "방화벽 규칙 추가 실패 (수동 설정 필요): $_"
+        Write-Warn "Firewall rule failed (manual config needed): $_"
     }
 }
 
 # -----------------------------------------------
-# 상태 확인
+# Show status
 # -----------------------------------------------
 function Show-Status {
     Start-Sleep -Seconds 3
     Write-Host ""
     Write-Host "=============================" -ForegroundColor Green
-    Write-Host " 설치 완료"                    -ForegroundColor Green
+    Write-Host " Installation Complete"        -ForegroundColor Green
     Write-Host "=============================" -ForegroundColor Green
-    Write-Host " 모드        : $Mode"
+    Write-Host " Mode        : $Mode"
     if ($CustomerId)  { Write-Host " Customer ID : $CustomerId" }
     if ($ServerName)  { Write-Host " Server Name : $ServerName" }
     if ($Csp)         { Write-Host " CSP         : $Csp" }
@@ -238,19 +238,19 @@ function Show-Status {
 
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -eq "Running") {
-        Write-Host " [OK] Alloy 실행 중" -ForegroundColor Green
+        Write-Host " [OK] Alloy running" -ForegroundColor Green
     } else {
-        Write-Host " [ERROR] Alloy 실행 실패" -ForegroundColor Red
-        Write-Host "  이벤트 뷰어 → Windows 로그 → Application → 소스: GrafanaAlloy"
+        Write-Host " [ERROR] Alloy failed to start" -ForegroundColor Red
+        Write-Host "  Event Viewer > Windows Logs > Application > Source: GrafanaAlloy"
     }
     Write-Host ""
-    Write-Host " 로그 확인: Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20"
-    Write-Host " 서비스 재시작: Restart-Service $ServiceName"
+    Write-Host " Check logs  : Get-EventLog -LogName Application -Source GrafanaAlloy -Newest 20"
+    Write-Host " Restart     : Restart-Service $ServiceName"
     Write-Host "=============================" -ForegroundColor Green
 }
 
 # -----------------------------------------------
-# 메인
+# Main
 # -----------------------------------------------
 Invoke-ValidateArgs
 Install-Alloy
